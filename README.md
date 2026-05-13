@@ -1,4 +1,6 @@
 # capacity-cleaning
+<img width="1289" height="586" alt="スクリーンショット 0008-05-13 午後9 01 07" src="https://github.com/user-attachments/assets/dc6191a8-bb6c-481b-8a64-ff5b030c340c" />
+
 
 capacity-cleaning is a native macOS SwiftUI app for disk usage inspection and safe cleanup review.
 
