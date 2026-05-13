@@ -1,42 +1,100 @@
-release:
-  name: Attach DMGs to Release
-  needs: build-dmg
-  if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
-  runs-on: ubuntu-latest
+name: Build macOS DMG
 
-  steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
 
-    - name: Download DMG artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: capacity-cleaning-*.dmg
-        path: dist
-        merge-multiple: true
+permissions:
+  contents: write
 
-    - name: Attach DMGs to GitHub Release
-      working-directory: ${{ github.workspace }}
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-          release_tag="${GITHUB_REF_NAME}"
-          release_title="${GITHUB_REF_NAME}"
-          release_notes="capacity-cleaning macOS DMG"
-        else
-          short_sha="${GITHUB_SHA::7}"
-          release_tag="master-${short_sha}"
-          release_title="master ${short_sha}"
-          release_notes="Automated DMG build from master at ${GITHUB_SHA}."
-        fi
+jobs:
+  build-dmg:
+    name: Build DMG (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-26
+            dmg_name: capacity-cleaning-arm64.dmg
+          - arch: x64
+            runner: macos-26-intel
+            dmg_name: capacity-cleaning-x64.dmg
 
-        if gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-          gh release upload "${release_tag}" dist/*.dmg --clobber --repo "${GITHUB_REPOSITORY}"
-        else
-          gh release create "${release_tag}" dist/*.dmg \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${GITHUB_SHA}" \
-            --title "${release_title}" \
-            --notes "${release_notes}"
-        fi
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Build app and DMG
+        env:
+          DMG_NAME: ${{ matrix.dmg_name }}
+        run: scripts/package_dmg.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.dmg_name }}
+          path: dist/${{ matrix.dmg_name }}
+          if-no-files-found: error
+
+  release:
+    name: Attach DMGs to Release
+    needs: build-dmg
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download DMG artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: capacity-cleaning-*.dmg
+          path: dist
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: |
+          find dist -maxdepth 2 -type f -print
+          test -f dist/capacity-cleaning-arm64.dmg
+          test -f dist/capacity-cleaning-x64.dmg
+
+      - name: Attach DMGs to GitHub Release
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            release_title="${GITHUB_REF_NAME}"
+            release_notes="capacity-cleaning macOS DMG"
+          else
+            short_sha="${GITHUB_SHA::7}"
+            release_tag="master-${short_sha}"
+            release_title="master ${short_sha}"
+            release_notes="Automated DMG build from master at ${GITHUB_SHA}."
+          fi
+
+          if gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${release_tag}" dist/*.dmg \
+              --clobber \
+              --repo "${GITHUB_REPOSITORY}"
+          else
+            gh release create "${release_tag}" dist/*.dmg \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${GITHUB_SHA}" \
+              --title "${release_title}" \
+              --notes "${release_notes}"
+          fi
