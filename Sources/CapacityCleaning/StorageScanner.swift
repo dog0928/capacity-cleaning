@@ -51,6 +51,7 @@ actor StorageScanner {
 
         let explainedBytes = summaries.reduce(Int64(0)) { $0 + $1.value.bytes }
         let volumeInfo = volumeStorageInfo(explainedBytes: explainedBytes)
+        let systemDataExplanations = systemDataExplanations(home: home, hiddenBytes: volumeInfo?.hiddenSystemBytes)
         if let hiddenBytes = volumeInfo?.hiddenSystemBytes, hiddenBytes > 0 {
             summaries[.systemDataEstimate, default: (0, 0)].bytes += hiddenBytes
         }
@@ -72,7 +73,8 @@ actor StorageScanner {
             summaries: categorySummaries,
             items: uniqueCandidates,
             unreadablePaths: unreadablePaths,
-            volumeInfo: volumeInfo
+            volumeInfo: volumeInfo,
+            systemDataExplanations: systemDataExplanations
         )
     }
 
@@ -95,6 +97,116 @@ actor StorageScanner {
             explainedBytes: explainedBytes,
             hiddenSystemBytes: hiddenBytes
         )
+    }
+
+    private func systemDataExplanations(home: URL, hiddenBytes: Int64?) -> [SystemDataExplanation] {
+        var explanations: [SystemDataExplanation] = []
+
+        func append(
+            _ id: String,
+            name: String,
+            path: String,
+            bytes: Int64? = nil,
+            isDeletableCandidate: Bool,
+            reason: String
+        ) {
+            explanations.append(
+                SystemDataExplanation(
+                    id: id,
+                    name: name,
+                    path: path,
+                    bytes: bytes,
+                    isDeletableCandidate: isDeletableCandidate,
+                    reason: reason
+                )
+            )
+        }
+
+        let logs = home.appendingPathComponent("Library/Logs")
+        if fileManager.fileExists(atPath: logs.path) {
+            let measure = measureDirectory(logs, maxDepth: 3)
+            if measure.bytes > 0 {
+                append(
+                    "user-logs",
+                    name: "User Logs",
+                    path: logs.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "ユーザーのログです。古いログは削除しても再作成されますが、直近のトラブル調査に使う場合があります。"
+                )
+            }
+        }
+
+        let backups = home.appendingPathComponent("Library/Application Support/MobileSync/Backup")
+        if fileManager.fileExists(atPath: backups.path) {
+            let measure = measureDirectory(backups, maxDepth: 3)
+            if measure.bytes > 0 {
+                append(
+                    "ios-backups",
+                    name: "iOS Device Backups",
+                    path: backups.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "iPhoneやiPadのローカルバックアップです。削除するとそのバックアップから復元できなくなるため、必要性を確認してください。"
+                )
+            }
+        }
+
+        if let hiddenBytes, hiddenBytes > 0 {
+            append(
+                "hidden-estimate",
+                name: "Hidden System Data Estimate",
+                path: "/",
+                bytes: hiddenBytes,
+                isDeletableCandidate: false,
+                reason: "システムデータの推定差分です。読み取り不可領域やOS管理データが混ざるため、直接削除できる1つのフォルダーとして扱えません。"
+            )
+        }
+
+        append(
+            "apfs-snapshots",
+            name: "APFS Snapshots / Local Time Machine",
+            path: "APFS snapshots",
+            isDeletableCandidate: false,
+            reason: "APFSスナップショットやローカルTime Machineは復元とバックアップ整合性に関わります。通常のフォルダーではないため、このアプリでは削除対象にしません。"
+        )
+
+        let vm = URL(fileURLWithPath: "/private/var/vm")
+        let vmBytes = fileManager.fileExists(atPath: vm.path) ? measureDirectory(vm, maxDepth: 1).bytes : nil
+        append(
+            "virtual-memory",
+            name: "Virtual Memory / Sleep Files",
+            path: vm.path,
+            bytes: vmBytes,
+            isDeletableCandidate: false,
+            reason: "仮想メモリとスリープ関連ファイルです。起動中のmacOSが使うため、手動削除すると不安定化やデータ損失につながる可能性があります。"
+        )
+
+        append(
+            "system-volume",
+            name: "System Volume",
+            path: "/System",
+            isDeletableCandidate: false,
+            reason: "macOS本体とシステム保護領域です。削除すると起動不能やアップデート失敗につながるため対象外です。"
+        )
+
+        append(
+            "spotlight",
+            name: "Spotlight Index",
+            path: "/.Spotlight-V100",
+            isDeletableCandidate: false,
+            reason: "Spotlightの検索インデックスです。削除すると検索やメタデータ処理が壊れたり、再構築で一時的に負荷が上がるため対象外です。"
+        )
+
+        append(
+            "shared-library",
+            name: "Shared System Library",
+            path: "/Library",
+            isDeletableCandidate: false,
+            reason: "共有フレームワーク、拡張、ドライバ、アプリ共通データが含まれます。依存関係が分かりにくいため削除対象外です。"
+        )
+
+        return explanations
     }
 
     private func scanRoots(home: URL) -> [ScanRoot] {
@@ -213,6 +325,24 @@ actor StorageScanner {
                 category: .developer,
                 level: .safe,
                 reason: "npmのキャッシュ領域です。必要時に再取得されます。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "User Logs",
+                url: home.appendingPathComponent("Library/Logs"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "ユーザーのログです。古いログは削除しても再作成されますが、直近のトラブル調査に使う場合があります。",
+                minimumBytesForDisplay: 10 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "iOS Device Backups",
+                url: home.appendingPathComponent("Library/Application Support/MobileSync/Backup"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "iPhoneやiPadのローカルバックアップです。削除するとそのバックアップから復元できなくなるため、必要性を確認してください。",
                 minimumBytesForDisplay: 100 * 1024 * 1024,
                 maxDepth: 3
             ),

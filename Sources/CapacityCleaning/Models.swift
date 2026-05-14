@@ -198,6 +198,15 @@ struct VolumeStorageInfo {
     let hiddenSystemBytes: Int64
 }
 
+struct SystemDataExplanation: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let path: String
+    let bytes: Int64?
+    let isDeletableCandidate: Bool
+    let reason: String
+}
+
 struct ScanReport {
     let generatedAt: Date
     let homePath: String
@@ -205,6 +214,7 @@ struct ScanReport {
     let items: [ScanItem]
     let unreadablePaths: Int
     let volumeInfo: VolumeStorageInfo?
+    let systemDataExplanations: [SystemDataExplanation]
 
     var totalBytes: Int64 {
         summaries.reduce(0) { $0 + $1.bytes }

@@ -253,6 +253,8 @@ struct ContentView: View {
             if let volumeInfo = report.volumeInfo {
                 VolumeStoragePanel(info: volumeInfo)
             }
+
+            SystemDataExplanationPanel(explanations: report.systemDataExplanations)
         }
     }
 
@@ -589,6 +591,116 @@ private struct VolumeStoragePanel: View {
     private func barWidth(bytes: Int64, total: Int64, width: CGFloat) -> CGFloat {
         guard total > 0 else { return 0 }
         return max(0, min(width, width * CGFloat(Double(bytes) / Double(total))))
+    }
+}
+
+private struct SystemDataExplanationPanel: View {
+    @EnvironmentObject private var settings: AppSettings
+    let explanations: [SystemDataExplanation]
+
+    private var deletableItems: [SystemDataExplanation] {
+        explanations.filter(\.isDeletableCandidate)
+    }
+
+    private var protectedItems: [SystemDataExplanation] {
+        explanations.filter { !$0.isDeletableCandidate }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Label(settings.t(.systemDataBreakdown), systemImage: "internaldrive")
+                    .font(.headline)
+                Spacer()
+            }
+
+            Text(settings.t(.systemDataDeleteNote))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !deletableItems.isEmpty {
+                explanationSection(title: settings.t(.deletableSystemData), items: deletableItems)
+            }
+
+            explanationSection(
+                title: settings.t(.dangerousSystemData),
+                subtitle: settings.t(.dangerousSystemDataBody),
+                items: protectedItems
+            )
+        }
+        .padding(14)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func explanationSection(
+        title: String,
+        subtitle: String? = nil,
+        items: [SystemDataExplanation]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.bold())
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(items) { item in
+                SystemDataExplanationRow(item: item)
+            }
+        }
+    }
+}
+
+private struct SystemDataExplanationRow: View {
+    @EnvironmentObject private var settings: AppSettings
+    let item: SystemDataExplanation
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: item.isDeletableCandidate ? "checkmark.shield" : "exclamationmark.shield")
+                .font(.title3)
+                .foregroundStyle(item.isDeletableCandidate ? .green : .orange)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(item.name)
+                        .font(.subheadline.weight(.semibold))
+                    if let bytes = item.bytes {
+                        Text(bytes.formattedFileSize)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(item.isDeletableCandidate ? settings.t(.deletable) : settings.t(.notDeletable))
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .foregroundStyle(item.isDeletableCandidate ? .green : .orange)
+                        .background((item.isDeletableCandidate ? Color.green : Color.orange).opacity(0.12), in: Capsule())
+                }
+
+                Text(settings.reason(item.reason))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(item.path)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.quaternary, lineWidth: 1)
+        )
     }
 }
 

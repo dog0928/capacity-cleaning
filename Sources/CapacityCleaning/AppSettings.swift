@@ -86,6 +86,13 @@ enum LocalizedKey: String {
     case hiddenSystemData
     case hiddenSystemDataBody
     case hiddenSystemDataEstimate
+    case systemDataBreakdown
+    case deletableSystemData
+    case dangerousSystemData
+    case dangerousSystemDataBody
+    case systemDataDeleteNote
+    case deletable
+    case notDeletable
     case unreadable
     case targets
     case detail
@@ -110,6 +117,8 @@ enum LocalizedKey: String {
     case downloadUpdate
     case downloadingUpdate
     case openInstaller
+    case applyUpdate
+    case applyingUpdate
     case updateAvailable
     case upToDate
     case updateUnknown
@@ -166,6 +175,13 @@ enum AppStrings {
         .hiddenSystemData: "見えないシステムデータ",
         .hiddenSystemDataBody: "ディスク使用量から、このアプリが分類できた容量を差し引いた推定値です。APFSスナップショット、ローカルバックアップ、仮想メモリ、Spotlightインデックス、権限で読めない領域などが含まれる可能性があります。",
         .hiddenSystemDataEstimate: "推定値",
+        .systemDataBreakdown: "システムデータの内訳",
+        .deletableSystemData: "削除できる可能性がある項目",
+        .dangerousSystemData: "削除すると危険な項目",
+        .dangerousSystemDataBody: "これらは容量として見えることがありますが、OSの復元、起動、メモリ管理、検索インデックス、バックアップに関わるため、このアプリでは削除対象にしません。",
+        .systemDataDeleteNote: "削除候補は確認対象にも表示されます。クリックして詳細を開き、チェックマークで選択してゴミ箱へ移動できます。",
+        .deletable: "削除候補",
+        .notDeletable: "削除不可",
         .unreadable: "読み取り不可",
         .targets: "確認対象",
         .detail: "詳細",
@@ -190,13 +206,15 @@ enum AppStrings {
         .downloadUpdate: "アップデートを取得",
         .downloadingUpdate: "取得中",
         .openInstaller: "取得したDMGを開く",
+        .applyUpdate: "適用して再起動",
+        .applyingUpdate: "適用中",
         .updateAvailable: "新しいバージョン %@ が利用できます。",
         .upToDate: "最新です。",
         .updateUnknown: "まだ確認していません。",
         .updateFailed: "アップデート確認に失敗しました。",
         .downloadedTo: "保存先: %@",
         .releasePage: "リリースページ",
-        .updateInstallNote: "取得したDMGを開き、capacity-cleaning.appをApplicationsへドラッグすると更新を適用できます。",
+        .updateInstallNote: "取得後に「適用して再起動」を押すと、アプリを終了して置き換え、更新版を起動します。失敗した場合はDMGを開いて手動でApplicationsへドラッグしてください。",
         .close: "閉じる"
     ]
 
@@ -231,6 +249,13 @@ enum AppStrings {
         .hiddenSystemData: "Hidden System Data",
         .hiddenSystemDataBody: "Estimated by subtracting the storage this app could classify from total disk usage. It may include APFS snapshots, local backups, virtual memory, Spotlight indexes, and areas blocked by permissions.",
         .hiddenSystemDataEstimate: "Estimate",
+        .systemDataBreakdown: "System Data Breakdown",
+        .deletableSystemData: "Potentially Deletable Items",
+        .dangerousSystemData: "Dangerous to Delete",
+        .dangerousSystemDataBody: "These can appear as storage usage, but they are tied to OS recovery, booting, memory management, search indexing, and backups, so this app does not offer them for deletion.",
+        .systemDataDeleteNote: "Deletable candidates also appear in Targets. Click one, review Details, select entries with checkmarks, then move them to Trash.",
+        .deletable: "Candidate",
+        .notDeletable: "Protected",
         .unreadable: "Unreadable",
         .targets: "Targets",
         .detail: "Details",
@@ -255,13 +280,15 @@ enum AppStrings {
         .downloadUpdate: "Download Update",
         .downloadingUpdate: "Downloading",
         .openInstaller: "Open Downloaded DMG",
+        .applyUpdate: "Apply and Relaunch",
+        .applyingUpdate: "Applying",
         .updateAvailable: "Version %@ is available.",
         .upToDate: "You are up to date.",
         .updateUnknown: "Not checked yet.",
         .updateFailed: "Failed to check for updates.",
         .downloadedTo: "Saved to: %@",
         .releasePage: "Release Page",
-        .updateInstallNote: "Open the downloaded DMG and drag capacity-cleaning.app to Applications to apply the update.",
+        .updateInstallNote: "After downloading, Apply and Relaunch quits the app, replaces it, and opens the updated version. If that fails, open the DMG and drag the app to Applications manually.",
         .close: "Close"
     ]
 
@@ -283,6 +310,14 @@ enum AppStrings {
         "再生成されやすい領域の中身です。削除前にアプリが起動中でないことを確認してください。": "Content from an area that is often regenerated. Make sure related apps are not running.",
         "このフォルダーが親項目の容量を多く使っています。中身を確認してください。": "This folder uses a large share of the parent item. Inspect it before cleaning.",
         "サイズの大きいファイルです。用途を確認してください。": "Large file. Confirm what it is used for.",
-        "スナップショット、仮想メモリ、インデックス、読み取り不可領域などの推定差分です。": "Estimated difference from snapshots, virtual memory, indexes, unreadable areas, and other hidden system data."
+        "スナップショット、仮想メモリ、インデックス、読み取り不可領域などの推定差分です。": "Estimated difference from snapshots, virtual memory, indexes, unreadable areas, and other hidden system data.",
+        "ユーザーのログです。古いログは削除しても再作成されますが、直近のトラブル調査に使う場合があります。": "User logs. Older logs are usually recreated, but recent ones may be useful for troubleshooting.",
+        "iPhoneやiPadのローカルバックアップです。削除するとそのバックアップから復元できなくなるため、必要性を確認してください。": "Local iPhone or iPad backups. If removed, you cannot restore from that backup, so confirm it is no longer needed.",
+        "システムデータの推定差分です。読み取り不可領域やOS管理データが混ざるため、直接削除できる1つのフォルダーとして扱えません。": "Estimated hidden system data. It can include unreadable areas and OS-managed data, so it cannot be treated as one deletable folder.",
+        "APFSスナップショットやローカルTime Machineは復元とバックアップ整合性に関わります。通常のフォルダーではないため、このアプリでは削除対象にしません。": "APFS snapshots and local Time Machine data affect recovery and backup consistency. They are not normal folders, so this app does not offer them for deletion.",
+        "仮想メモリとスリープ関連ファイルです。起動中のmacOSが使うため、手動削除すると不安定化やデータ損失につながる可能性があります。": "Virtual memory and sleep files are used by macOS while running. Manual deletion can cause instability or data loss.",
+        "macOS本体とシステム保護領域です。削除すると起動不能やアップデート失敗につながるため対象外です。": "macOS system and protected areas. Deleting them can prevent booting or break updates, so they are excluded.",
+        "Spotlightの検索インデックスです。削除すると検索やメタデータ処理が壊れたり、再構築で一時的に負荷が上がるため対象外です。": "Spotlight search indexes. Removing them can break search and metadata behavior or trigger heavy rebuild work, so they are excluded.",
+        "共有フレームワーク、拡張、ドライバ、アプリ共通データが含まれます。依存関係が分かりにくいため削除対象外です。": "Shared frameworks, extensions, drivers, and app-wide support data. Dependencies are hard to verify, so they are excluded."
     ]
 }

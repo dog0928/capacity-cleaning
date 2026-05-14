@@ -40,6 +40,7 @@ final class UpdateManager: ObservableObject {
     @Published var downloadedDMG: URL?
     @Published var isChecking = false
     @Published var isDownloading = false
+    @Published var isApplying = false
     @Published var statusKey: LocalizedKey = .updateUnknown
     @Published var errorMessage: String?
 
@@ -108,6 +109,37 @@ final class UpdateManager: ObservableObject {
         }
     }
 
+
+    func applyDownloadedUpdate() {
+        guard let downloadedDMG else {
+            errorMessage = "No downloaded DMG is available."
+            return
+        }
+
+        let bundleURL = Bundle.main.bundleURL
+        guard bundleURL.pathExtension == "app" else {
+            errorMessage = "Updates can only be applied from the packaged .app."
+            return
+        }
+
+        do {
+            isApplying = true
+            let scriptURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("capacity-cleaning-update-\(UUID().uuidString).sh")
+            try updateScript.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = [scriptURL.path, downloadedDMG.path, bundleURL.path, String(ProcessInfo.processInfo.processIdentifier), scriptURL.path]
+            try process.run()
+            NSApp.terminate(nil)
+        } catch {
+            isApplying = false
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func openDownloadedInstaller() {
         guard let downloadedDMG else { return }
         NSWorkspace.shared.open(downloadedDMG)
@@ -116,6 +148,54 @@ final class UpdateManager: ObservableObject {
     func openReleasePage() {
         guard let latest else { return }
         NSWorkspace.shared.open(latest.releaseURL)
+    }
+
+
+    private var updateScript: String {
+        """
+        #!/bin/sh
+        set -eu
+
+        DMG_PATH="$1"
+        TARGET_APP="$2"
+        APP_PID="$3"
+        SCRIPT_PATH="$4"
+        APP_NAME="capacity-cleaning.app"
+        MOUNT_DIR=""
+
+        cleanup() {
+            if [ -n "$MOUNT_DIR" ]; then
+                /usr/bin/hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null || /usr/bin/hdiutil detach -force "$MOUNT_DIR" -quiet 2>/dev/null || true
+            fi
+            /bin/rm -f "$SCRIPT_PATH" 2>/dev/null || true
+        }
+        trap cleanup EXIT
+
+        while /bin/kill -0 "$APP_PID" 2>/dev/null; do
+            /bin/sleep 0.2
+        done
+
+        MOUNT_DIR="$(/usr/bin/hdiutil attach "$DMG_PATH" -readonly -nobrowse -noverify | /usr/bin/awk '/Apple_HFS/ {for (i = 3; i <= NF; i++) printf "%s%s", $i, (i < NF ? OFS : ORS); exit}')"
+        if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR" ]; then
+            exit 1
+        fi
+
+        SOURCE_APP="$MOUNT_DIR/$APP_NAME"
+        if [ ! -d "$SOURCE_APP" ]; then
+            exit 1
+        fi
+
+        TARGET_PARENT="$(/usr/bin/dirname "$TARGET_APP")"
+        TEMP_APP="$TARGET_PARENT/.capacity-cleaning-update-$$.app"
+        BACKUP_APP="$TARGET_PARENT/.capacity-cleaning-backup-$$.app"
+
+        /bin/rm -rf "$TEMP_APP" "$BACKUP_APP"
+        /usr/bin/ditto "$SOURCE_APP" "$TEMP_APP"
+        /bin/mv "$TARGET_APP" "$BACKUP_APP"
+        /bin/mv "$TEMP_APP" "$TARGET_APP"
+        /bin/rm -rf "$BACKUP_APP"
+        /usr/bin/open "$TARGET_APP"
+        """
     }
 
     private func bestUpdate(from releases: [GitHubRelease]) -> UpdateInfo? {

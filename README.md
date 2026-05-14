@@ -42,11 +42,12 @@ Settings include:
 - Check for updates on launch.
 - Manual update check.
 - Download update DMG.
-- Open the downloaded installer DMG.
+- Apply and relaunch from inside the app.
+- Open the downloaded installer DMG as a manual fallback.
 
-Updates are resolved from the latest GitHub Release in `dog0928/dir-clear`. The app downloads the matching `capacity-cleaning-arm64.dmg` or `capacity-cleaning-x64.dmg` file to Downloads. To apply the update, open the downloaded DMG and drag `capacity-cleaning.app` to Applications.
+Updates are resolved from GitHub Releases in `dog0928/capacity-cleaning`. The app downloads the matching `capacity-cleaning-arm64.dmg` or `capacity-cleaning-x64.dmg` file to Downloads. To apply the update, click **Apply and Relaunch**; the app starts a temporary updater script, quits, replaces the current `.app` with the version from the DMG, and opens the updated app.
 
-The app does not silently overwrite the running application. This avoids replacing an app while it is active and keeps the final install step visible to the user.
+If the current install location cannot be replaced because of permissions, open the downloaded DMG and drag `capacity-cleaning.app` to Applications manually.
 
 ## Build
 
