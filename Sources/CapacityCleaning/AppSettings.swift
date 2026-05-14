@@ -323,6 +323,14 @@ enum AppStrings {
         "クラッシュログや診断レポートです。古いものは削除できますが、直近の不具合調査に使う場合があります。": "Crash logs and diagnostic reports. Older reports can be removed, but recent ones may be useful for troubleshooting.",
         "接続したiPhoneやiPad用にXcodeが保存したサポートデータです。古いOS端末を使わない場合は削除候補になります。": "Xcode support data for connected iPhone or iPad devices. It is a cleanup candidate when you no longer use devices on those older OS versions.",
         "Xcodeの配布用アーカイブです。削除すると再アップロードや再署名に必要な履歴を失う可能性があります。不要なものだけ確認してください。": "Xcode distribution archives. Removing them can lose history needed for re-uploading or re-signing, so clean only items you no longer need.",
-        "Simulatorが作るキャッシュです。削除後に必要なデータは再生成されますが、SimulatorやXcodeを終了してから操作してください。": "Caches created by Simulator. Needed data is regenerated after removal, but quit Simulator and Xcode before cleaning."
+        "Simulatorが作るキャッシュです。削除後に必要なデータは再生成されますが、SimulatorやXcodeを終了してから操作してください。": "Caches created by Simulator. Needed data is regenerated after removal, but quit Simulator and Xcode before cleaning.",
+        "macOSがユーザーごとに割り当てる一時フォルダーです。起動中アプリが使っている可能性があるため、古い項目だけ確認してください。": "Per-user temporary folder assigned by macOS. Running apps may still use it, so review old items only.",
+        "macOSのユーザー別キャッシュ領域です。多くは再生成されますが、実行中アプリのデータがないか確認してください。": "Per-user macOS cache area. Most data is regenerated, but check for files used by running apps.",
+        "アプリやWebViewが保存するHTTPデータです。ログイン状態やオフラインデータに関係する場合があるため確認対象です。": "HTTP data stored by apps and WebViews. It can affect login state or offline data, so review it first.",
+        "全ユーザー共通のキャッシュです。権限や依存関係があるため、容量把握のみ行います。": "System-wide cache shared by all users. It is shown for visibility because permissions and dependencies may apply.",
+        "全ユーザー共通のログです。原因調査や管理者権限に関わるため、容量把握のみ行います。": "System-wide logs shared by all users. They are shown for visibility because they may be needed for diagnostics or require admin permissions.",
+        "macOSアップデート用データです。削除するとアップデートや復旧に影響する可能性があるため表示のみです。": "macOS update data. It is view-only because removing it can affect updates or recovery.",
+        "インストール済みアプリ本体です。不要なアプリや巨大なアプリを確認するための表示です。": "Installed applications. Review this to find unused or unusually large apps.",
+        "アプリコンテナ内のキャッシュです。アプリ終了後なら再生成されやすい領域ですが、対象アプリ名を確認してください。": "Cache inside an app container. It is usually regenerated after quitting the app, but confirm which app owns it."
     ]
 }

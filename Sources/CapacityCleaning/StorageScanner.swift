@@ -47,9 +47,11 @@ actor StorageScanner {
             }
         }
 
+        candidates.append(contentsOf: discoverSystemDataCleanupFolders(in: home))
         candidates.append(contentsOf: discoverLargeFolders(in: home))
+        candidates.append(contentsOf: discoverLargeFiles(in: home))
 
-        let explainedBytes = summaries.reduce(Int64(0)) { $0 + $1.value.bytes }
+        let explainedBytes = measuredVolumeBytes(home: home)
         let volumeInfo = volumeStorageInfo(explainedBytes: explainedBytes)
         let systemDataExplanations = systemDataExplanations(home: home, hiddenBytes: volumeInfo?.hiddenSystemBytes)
         if let hiddenBytes = volumeInfo?.hiddenSystemBytes, hiddenBytes > 0 {
@@ -284,8 +286,33 @@ actor StorageScanner {
         return explanations
     }
 
+    private func measuredVolumeBytes(home: URL) -> Int64 {
+        let roots = [
+            MeasuredRoot(url: home, maxDepth: 7),
+            MeasuredRoot(url: URL(fileURLWithPath: "/Applications"), maxDepth: 5),
+            MeasuredRoot(url: URL(fileURLWithPath: "/Library"), maxDepth: 5),
+            MeasuredRoot(url: URL(fileURLWithPath: "/private/var"), maxDepth: 5),
+            MeasuredRoot(url: URL(fileURLWithPath: "/usr/local"), maxDepth: 5),
+            MeasuredRoot(url: URL(fileURLWithPath: "/opt"), maxDepth: 5),
+            MeasuredRoot(url: URL(fileURLWithPath: "/Users/Shared"), maxDepth: 5)
+        ]
+
+        var measured: Int64 = 0
+        var seen = Set<String>()
+        for root in roots {
+            let path = root.url.standardizedFileURL.path
+            guard fileManager.fileExists(atPath: path), !seen.contains(path) else { continue }
+            seen.insert(path)
+            measured += measureDirectory(root.url, maxDepth: root.maxDepth).bytes
+        }
+        return measured
+    }
+
     private func scanRoots(home: URL) -> [ScanRoot] {
-        [
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let varFolderCache = tempDirectory.deletingLastPathComponent().appendingPathComponent("C", isDirectory: true)
+
+        return [
             ScanRoot(
                 name: "Downloads",
                 url: home.appendingPathComponent("Downloads"),
@@ -467,6 +494,69 @@ actor StorageScanner {
                 maxDepth: 3
             ),
             ScanRoot(
+                name: "User Temporary Items",
+                url: tempDirectory,
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "macOSがユーザーごとに割り当てる一時フォルダーです。起動中アプリが使っている可能性があるため、古い項目だけ確認してください。",
+                minimumBytesForDisplay: 10 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "User var/folders Cache",
+                url: varFolderCache,
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "macOSのユーザー別キャッシュ領域です。多くは再生成されますが、実行中アプリのデータがないか確認してください。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "HTTP Storages",
+                url: home.appendingPathComponent("Library/HTTPStorages"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "アプリやWebViewが保存するHTTPデータです。ログイン状態やオフラインデータに関係する場合があるため確認対象です。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "System Cache Overview",
+                url: URL(fileURLWithPath: "/Library/Caches"),
+                category: .systemDataEstimate,
+                level: .observe,
+                reason: "全ユーザー共通のキャッシュです。権限や依存関係があるため、容量把握のみ行います。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "System Logs Overview",
+                url: URL(fileURLWithPath: "/Library/Logs"),
+                category: .systemDataEstimate,
+                level: .observe,
+                reason: "全ユーザー共通のログです。原因調査や管理者権限に関わるため、容量把握のみ行います。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "macOS Update Data",
+                url: URL(fileURLWithPath: "/Library/Updates"),
+                category: .systemDataEstimate,
+                level: .observe,
+                reason: "macOSアップデート用データです。削除するとアップデートや復旧に影響する可能性があるため表示のみです。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Applications",
+                url: URL(fileURLWithPath: "/Applications"),
+                category: .other,
+                level: .review,
+                reason: "インストール済みアプリ本体です。不要なアプリや巨大なアプリを確認するための表示です。",
+                minimumBytesForDisplay: byteThreshold,
+                maxDepth: 3
+            ),
+            ScanRoot(
                 name: "System Library",
                 url: URL(fileURLWithPath: "/Library"),
                 category: .system,
@@ -478,16 +568,63 @@ actor StorageScanner {
         ]
     }
 
+    private func discoverSystemDataCleanupFolders(in home: URL) -> [ScanItem] {
+        var items: [ScanItem] = []
+        let containerRoots = [
+            home.appendingPathComponent("Library/Containers"),
+            home.appendingPathComponent("Library/Group Containers")
+        ]
+
+        for root in containerRoots {
+            guard let containers = try? fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for container in containers where isDirectory(container) && !isSymbolicLink(container) {
+                let cacheCandidates = [
+                    container.appendingPathComponent("Data/Library/Caches"),
+                    container.appendingPathComponent("Library/Caches"),
+                    container.appendingPathComponent("Caches")
+                ]
+
+                for cache in cacheCandidates where fileManager.fileExists(atPath: cache.path) {
+                    let measure = measureDirectory(cache, maxDepth: 3)
+                    guard measure.bytes >= 100 * 1024 * 1024 else { continue }
+                    items.append(
+                        ScanItem(
+                            name: "Container Cache: \(container.lastPathComponent)",
+                            path: cache.path,
+                            category: .systemDataEstimate,
+                            level: .safe,
+                            bytes: measure.bytes,
+                            fileCount: measure.fileCount,
+                            reason: "アプリコンテナ内のキャッシュです。アプリ終了後なら再生成されやすい領域ですが、対象アプリ名を確認してください。"
+                        )
+                    )
+                }
+            }
+        }
+
+        return items
+    }
+
     private func discoverLargeFolders(in home: URL) -> [ScanItem] {
         let searchRoots = [
             home.appendingPathComponent("Downloads"),
             home.appendingPathComponent("Documents"),
             home.appendingPathComponent("Desktop"),
-            home.appendingPathComponent("Library/Application Support")
+            home.appendingPathComponent("Movies"),
+            home.appendingPathComponent("Pictures"),
+            home.appendingPathComponent("Library/Application Support"),
+            home.appendingPathComponent("Library/Developer"),
+            URL(fileURLWithPath: "/Users/Shared"),
+            URL(fileURLWithPath: "/Applications")
         ]
 
         var items: [ScanItem] = []
-        var remaining = 80
+        var remaining = 180
 
         for root in searchRoots where remaining > 0 {
             guard let children = try? fileManager.contentsOfDirectory(
@@ -498,7 +635,7 @@ actor StorageScanner {
 
             for child in children where remaining > 0 {
                 guard isDirectory(child), !isSymbolicLink(child) else { continue }
-                let measure = measureDirectory(child, maxDepth: 3)
+                let measure = measureDirectory(child, maxDepth: 5)
                 remaining -= 1
                 guard measure.bytes >= byteThreshold else { continue }
                 items.append(
@@ -506,7 +643,7 @@ actor StorageScanner {
                         name: child.lastPathComponent,
                         path: child.path,
                         category: category(for: child, home: home),
-                        level: .review,
+                        level: levelForDiscoveredItem(child, home: home),
                         bytes: measure.bytes,
                         fileCount: measure.fileCount,
                         reason: "大きいフォルダです。中身を確認して、不要なものだけ手動で整理してください。"
@@ -516,6 +653,62 @@ actor StorageScanner {
         }
 
         return items
+    }
+
+    private func discoverLargeFiles(in home: URL) -> [ScanItem] {
+        let roots = [
+            FileSearchRoot(url: home.appendingPathComponent("Downloads"), maxDepth: 5),
+            FileSearchRoot(url: home.appendingPathComponent("Desktop"), maxDepth: 4),
+            FileSearchRoot(url: home.appendingPathComponent("Documents"), maxDepth: 5),
+            FileSearchRoot(url: home.appendingPathComponent("Movies"), maxDepth: 5),
+            FileSearchRoot(url: home.appendingPathComponent("Pictures"), maxDepth: 4),
+            FileSearchRoot(url: home.appendingPathComponent("Library/Application Support"), maxDepth: 4),
+            FileSearchRoot(url: home.appendingPathComponent("Library/Developer"), maxDepth: 5),
+            FileSearchRoot(url: URL(fileURLWithPath: "/Users/Shared"), maxDepth: 5)
+        ]
+
+        var files: [ScanItem] = []
+        var inspected = 0
+        let maximumInspectedFiles = 60_000
+        let minimumLargeFileBytes: Int64 = 300 * 1024 * 1024
+
+        for root in roots where inspected < maximumInspectedFiles {
+            guard fileManager.fileExists(atPath: root.url.path) else { continue }
+            guard let enumerator = fileManager.enumerator(
+                at: root.url,
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .contentModificationDateKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else { continue }
+
+            let rootDepth = root.url.standardizedFileURL.pathComponents.count
+            for case let file as URL in enumerator {
+                if inspected >= maximumInspectedFiles { break }
+                let depth = file.standardizedFileURL.pathComponents.count - rootDepth
+                if depth > root.maxDepth {
+                    if isDirectory(file) { enumerator.skipDescendants() }
+                    continue
+                }
+                guard !isSymbolicLink(file), !isDirectory(file) else { continue }
+                inspected += 1
+                let size = allocatedSize(file)
+                guard size >= minimumLargeFileBytes || isInstallerCandidate(file) && size >= 100 * 1024 * 1024 else { continue }
+                files.append(
+                    ScanItem(
+                        name: "Large File: \(file.lastPathComponent)",
+                        path: file.path,
+                        category: category(for: file, home: home),
+                        level: isInstallerCandidate(file) ? .safe : .review,
+                        bytes: size,
+                        fileCount: 1,
+                        reason: isInstallerCandidate(file)
+                            ? "Downloads内のインストーラ系ファイルです。インストール済みなら不要になっている可能性があります。"
+                            : "サイズの大きいファイルです。用途を確認してください。"
+                    )
+                )
+            }
+        }
+
+        return files.sorted { $0.bytes > $1.bytes }.prefix(120).map { $0 }
     }
 
     private func scanDetail(for item: ScanItem) -> ItemDetail {
@@ -652,10 +845,37 @@ actor StorageScanner {
 
     private func category(for url: URL, home: URL) -> StorageCategory {
         let path = url.path
+        if path.hasPrefix("/Applications") {
+            return .other
+        }
+        if path.contains("/Library/Developer") {
+            return .developer
+        }
+        if path.contains("/Library/Caches") {
+            return .caches
+        }
+        if path.contains("/Library/Logs")
+            || path.contains("/Library/Saved Application State")
+            || path.contains("/Library/HTTPStorages")
+            || path.contains("/Library/Application Support/MobileSync")
+            || path.contains("/var/folders") {
+            return .systemDataEstimate
+        }
         if path.contains("/Library/Application Support") || path.contains("/Library/") {
             return .userLibrary
         }
         return .userFiles
+    }
+
+    private func levelForDiscoveredItem(_ url: URL, home: URL) -> RecommendationLevel {
+        let path = url.path
+        if path.hasPrefix("/Applications") {
+            return .review
+        }
+        if path.contains("/Library/Caches") || path.contains("/Library/Logs") || path.contains("/var/folders") {
+            return .safe
+        }
+        return .review
     }
 
     private func levelForDetail(parent: ScanItem, child: URL) -> RecommendationLevel {
@@ -715,5 +935,15 @@ private struct ScanRoot {
     let level: RecommendationLevel
     let reason: String
     let minimumBytesForDisplay: Int64
+    let maxDepth: Int
+}
+
+private struct MeasuredRoot {
+    let url: URL
+    let maxDepth: Int
+}
+
+private struct FileSearchRoot {
+    let url: URL
     let maxDepth: Int
 }
