@@ -14,11 +14,15 @@ struct ReleaseAsset: Decodable {
 struct GitHubRelease: Decodable {
     let tagName: String
     let htmlURL: URL
+    let draft: Bool
+    let prerelease: Bool
     let assets: [ReleaseAsset]
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlURL = "html_url"
+        case draft
+        case prerelease
         case assets
     }
 }
@@ -27,6 +31,7 @@ struct UpdateInfo {
     let version: String
     let releaseURL: URL
     let asset: ReleaseAsset
+    let isNewerThanCurrent: Bool
 }
 
 @MainActor
@@ -38,15 +43,14 @@ final class UpdateManager: ObservableObject {
     @Published var statusKey: LocalizedKey = .updateUnknown
     @Published var errorMessage: String?
 
-    private let releaseEndpoint = URL(string: "https://api.github.com/repos/dog0928/dir-clear/releases/latest")!
+    private let releasesEndpoint = URL(string: "https://api.github.com/repos/dog0928/capacity-cleaning/releases?per_page=20")!
 
     var currentVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.1"
     }
 
     var hasUpdate: Bool {
-        guard let latest else { return false }
-        return isVersion(latest.version, newerThan: currentVersion)
+        latest?.isNewerThanCurrent == true
     }
 
     func checkForUpdates() async {
@@ -56,18 +60,25 @@ final class UpdateManager: ObservableObject {
         defer { isChecking = false }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: releaseEndpoint)
-            let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-            guard let asset = release.assets.first(where: { $0.name == expectedAssetName }) else {
+            var request = URLRequest(url: releasesEndpoint)
+            request.setValue("capacity-cleaning", forHTTPHeaderField: "User-Agent")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw URLError(.badServerResponse)
+            }
+
+            let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+            guard let info = bestUpdate(from: releases) else {
                 latest = nil
                 statusKey = .updateFailed
-                errorMessage = "No matching DMG asset found: \(expectedAssetName)"
+                errorMessage = "No release contains a matching DMG asset: \(expectedAssetName)"
                 return
             }
 
-            let version = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-            latest = UpdateInfo(version: version, releaseURL: release.htmlURL, asset: asset)
-            statusKey = isVersion(version, newerThan: currentVersion) ? .updateAvailable : .upToDate
+            latest = info
+            statusKey = info.isNewerThanCurrent ? .updateAvailable : .upToDate
         } catch {
             latest = nil
             statusKey = .updateFailed
@@ -76,16 +87,19 @@ final class UpdateManager: ObservableObject {
     }
 
     func downloadUpdate() async {
-        guard let latest, hasUpdate, !isDownloading else { return }
+        guard let latest, latest.isNewerThanCurrent, !isDownloading else { return }
         isDownloading = true
         errorMessage = nil
         defer { isDownloading = false }
 
         do {
-            let (temporaryURL, _) = try await URLSession.shared.download(from: latest.asset.browserDownloadURL)
+            var request = URLRequest(url: latest.asset.browserDownloadURL)
+            request.setValue("capacity-cleaning", forHTTPHeaderField: "User-Agent")
+            let (temporaryURL, _) = try await URLSession.shared.download(for: request)
             let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
                 ?? FileManager.default.homeDirectoryForCurrentUser
-            let target = downloads.appendingPathComponent("capacity-cleaning-\(latest.version)-\(architectureName).dmg")
+            let safeVersion = latest.version.replacingOccurrences(of: "/", with: "-")
+            let target = downloads.appendingPathComponent("capacity-cleaning-\(safeVersion)-\(architectureName).dmg")
             try? FileManager.default.removeItem(at: target)
             try FileManager.default.moveItem(at: temporaryURL, to: target)
             downloadedDMG = target
@@ -104,6 +118,33 @@ final class UpdateManager: ObservableObject {
         NSWorkspace.shared.open(latest.releaseURL)
     }
 
+    private func bestUpdate(from releases: [GitHubRelease]) -> UpdateInfo? {
+        let candidates = releases.compactMap { release -> UpdateInfo? in
+            guard !release.draft, !release.prerelease else { return nil }
+            guard let asset = matchingAsset(in: release) else { return nil }
+            let version = displayVersion(for: release.tagName)
+            return UpdateInfo(
+                version: version,
+                releaseURL: release.htmlURL,
+                asset: asset,
+                isNewerThanCurrent: isReleaseTagNewer(release.tagName)
+            )
+        }
+
+        return candidates.first(where: \.isNewerThanCurrent) ?? candidates.first
+    }
+
+    private func matchingAsset(in release: GitHubRelease) -> ReleaseAsset? {
+        release.assets.first { $0.name == expectedAssetName }
+            ?? release.assets.first { asset in
+                asset.name.hasSuffix("-\(architectureName).dmg") && asset.name.contains("capacity-cleaning")
+            }
+    }
+
+    private func displayVersion(for tag: String) -> String {
+        tag.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+    }
+
     private var expectedAssetName: String {
         "capacity-cleaning-\(architectureName).dmg"
     }
@@ -116,9 +157,18 @@ final class UpdateManager: ObservableObject {
         #endif
     }
 
+    private func isReleaseTagNewer(_ tag: String) -> Bool {
+        let version = displayVersion(for: tag)
+        if version.hasPrefix("master-") {
+            return true
+        }
+        return isVersion(version, newerThan: currentVersion)
+    }
+
     private func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
         let left = lhs.split(separator: ".").map { Int($0) ?? 0 }
         let right = rhs.split(separator: ".").map { Int($0) ?? 0 }
+        guard !left.isEmpty, !right.isEmpty else { return false }
         let count = max(left.count, right.count)
         for index in 0..<count {
             let l = index < left.count ? left[index] : 0

@@ -92,17 +92,6 @@ struct ContentView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 10) {
-                Label(t(.safetyPolicy), systemImage: "lock.shield")
-                    .font(.headline)
-                SafetyRow(text: t(.noAutomaticDelete))
-                SafetyRow(text: t(.confirmBeforeDelete))
-                SafetyRow(text: t(.moveToTrash))
-                SafetyRow(text: t(.observeCannotDelete))
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(t(.filter))
                         .font(.headline)

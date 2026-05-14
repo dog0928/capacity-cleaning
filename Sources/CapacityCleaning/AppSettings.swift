@@ -58,6 +58,7 @@ final class AppSettings: ObservableObject {
 enum LocalizedKey: String {
     case appSubtitle
     case safetyPolicy
+    case safetyPolicyBody
     case noAutomaticDelete
     case confirmBeforeDelete
     case moveToTrash
@@ -110,6 +111,7 @@ enum LocalizedKey: String {
     case downloadedTo
     case releasePage
     case updateInstallNote
+    case close
 }
 
 enum AppStrings {
@@ -130,6 +132,7 @@ enum AppStrings {
     private static let japanese: [LocalizedKey: String] = [
         .appSubtitle: "容量分析とセーフ整理",
         .safetyPolicy: "安全方針",
+        .safetyPolicyBody: "capacity-cleaningは自動削除を行いません。ファイル操作はユーザーが削除ボタンを押し、確認ダイアログで承認した場合だけ実行されます。",
         .noAutomaticDelete: "自動削除なし",
         .confirmBeforeDelete: "削除前に確認ダイアログ",
         .moveToTrash: "操作はゴミ箱へ移動",
@@ -181,12 +184,14 @@ enum AppStrings {
         .updateFailed: "アップデート確認に失敗しました。",
         .downloadedTo: "保存先: %@",
         .releasePage: "リリースページ",
-        .updateInstallNote: "取得したDMGを開き、capacity-cleaning.appをApplicationsへドラッグすると更新を適用できます。"
+        .updateInstallNote: "取得したDMGを開き、capacity-cleaning.appをApplicationsへドラッグすると更新を適用できます。",
+        .close: "閉じる"
     ]
 
     private static let english: [LocalizedKey: String] = [
         .appSubtitle: "Storage analysis and safe cleanup",
         .safetyPolicy: "Safety Policy",
+        .safetyPolicyBody: "capacity-cleaning never performs automatic deletion. File operations only run after the user clicks a Trash button and confirms the dialog.",
         .noAutomaticDelete: "No automatic deletion",
         .confirmBeforeDelete: "Confirmation before deleting",
         .moveToTrash: "Files are moved to Trash",
@@ -238,7 +243,8 @@ enum AppStrings {
         .updateFailed: "Failed to check for updates.",
         .downloadedTo: "Saved to: %@",
         .releasePage: "Release Page",
-        .updateInstallNote: "Open the downloaded DMG and drag capacity-cleaning.app to Applications to apply the update."
+        .updateInstallNote: "Open the downloaded DMG and drag capacity-cleaning.app to Applications to apply the update.",
+        .close: "Close"
     ]
 
     private static let reasonEnglish: [String: String] = [

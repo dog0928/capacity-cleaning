@@ -74,7 +74,7 @@ The DMG is created at:
 dist/capacity-cleaning.dmg
 ```
 
-GitHub Actions also builds DMGs on macOS. Push a tag such as `v0.1.0` to attach downloadable DMGs to a GitHub Release; normal pushes and pull requests upload them as workflow artifacts.
+GitHub Actions also builds DMGs on macOS. Push a tag such as `v0.1.1` to attach downloadable DMGs to a GitHub Release; normal pushes and pull requests upload them as workflow artifacts.
 
 The workflow builds separate DMGs for Apple Silicon and Intel Macs:
 
@@ -83,6 +83,6 @@ The workflow builds separate DMGs for Apple Silicon and Intel Macs:
 
 The DMG contains `capacity-cleaning.app`, an `Applications` shortcut, and a visual "Drop capacity-cleaning.app to Applications" install image/background so users can drag the app into Applications.
 
-Every push to `master` creates a GitHub Release named `master-<short-sha>` with the DMGs attached. Version tags such as `v0.1.0` create versioned releases.
+Every push to `master` creates a GitHub Release named `master-<short-sha>` with the DMGs attached. Version tags such as `v0.1.1` create versioned releases.
 
 These builds are ad-hoc signed for packaging. Public distribution without Gatekeeper warnings requires Apple Developer ID signing and notarization.
