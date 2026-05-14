@@ -318,6 +318,11 @@ enum AppStrings {
         "仮想メモリとスリープ関連ファイルです。起動中のmacOSが使うため、手動削除すると不安定化やデータ損失につながる可能性があります。": "Virtual memory and sleep files are used by macOS while running. Manual deletion can cause instability or data loss.",
         "macOS本体とシステム保護領域です。削除すると起動不能やアップデート失敗につながるため対象外です。": "macOS system and protected areas. Deleting them can prevent booting or break updates, so they are excluded.",
         "Spotlightの検索インデックスです。削除すると検索やメタデータ処理が壊れたり、再構築で一時的に負荷が上がるため対象外です。": "Spotlight search indexes. Removing them can break search and metadata behavior or trigger heavy rebuild work, so they are excluded.",
-        "共有フレームワーク、拡張、ドライバ、アプリ共通データが含まれます。依存関係が分かりにくいため削除対象外です。": "Shared frameworks, extensions, drivers, and app-wide support data. Dependencies are hard to verify, so they are excluded."
+        "共有フレームワーク、拡張、ドライバ、アプリ共通データが含まれます。依存関係が分かりにくいため削除対象外です。": "Shared frameworks, extensions, drivers, and app-wide support data. Dependencies are hard to verify, so they are excluded.",
+        "アプリのウィンドウ復元や終了時状態です。削除すると一部アプリの復元状態は消えますが、必要に応じて再作成されます。": "Saved window and app restore state. Removing it clears some restore state, but apps recreate it as needed.",
+        "クラッシュログや診断レポートです。古いものは削除できますが、直近の不具合調査に使う場合があります。": "Crash logs and diagnostic reports. Older reports can be removed, but recent ones may be useful for troubleshooting.",
+        "接続したiPhoneやiPad用にXcodeが保存したサポートデータです。古いOS端末を使わない場合は削除候補になります。": "Xcode support data for connected iPhone or iPad devices. It is a cleanup candidate when you no longer use devices on those older OS versions.",
+        "Xcodeの配布用アーカイブです。削除すると再アップロードや再署名に必要な履歴を失う可能性があります。不要なものだけ確認してください。": "Xcode distribution archives. Removing them can lose history needed for re-uploading or re-signing, so clean only items you no longer need.",
+        "Simulatorが作るキャッシュです。削除後に必要なデータは再生成されますが、SimulatorやXcodeを終了してから操作してください。": "Caches created by Simulator. Needed data is regenerated after removal, but quit Simulator and Xcode before cleaning."
     ]
 }

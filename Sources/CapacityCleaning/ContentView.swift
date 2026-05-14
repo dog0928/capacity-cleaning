@@ -254,7 +254,14 @@ struct ContentView: View {
                 VolumeStoragePanel(info: volumeInfo)
             }
 
-            SystemDataExplanationPanel(explanations: report.systemDataExplanations)
+            SystemDataExplanationPanel(
+                explanations: report.systemDataExplanations,
+                availablePaths: Set(report.items.map(\.path))
+            ) { path in
+                if let item = report.items.first(where: { $0.path == path }) {
+                    viewModel.select(item)
+                }
+            }
         }
     }
 
@@ -597,6 +604,8 @@ private struct VolumeStoragePanel: View {
 private struct SystemDataExplanationPanel: View {
     @EnvironmentObject private var settings: AppSettings
     let explanations: [SystemDataExplanation]
+    let availablePaths: Set<String>
+    let openDetail: (String) -> Void
 
     private var deletableItems: [SystemDataExplanation] {
         explanations.filter(\.isDeletableCandidate)
@@ -648,7 +657,12 @@ private struct SystemDataExplanationPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             ForEach(items) { item in
-                SystemDataExplanationRow(item: item)
+                SystemDataExplanationRow(
+                    item: item,
+                    canOpenDetail: availablePaths.contains(item.path)
+                ) {
+                    openDetail(item.path)
+                }
             }
         }
     }
@@ -657,6 +671,8 @@ private struct SystemDataExplanationPanel: View {
 private struct SystemDataExplanationRow: View {
     @EnvironmentObject private var settings: AppSettings
     let item: SystemDataExplanation
+    let canOpenDetail: Bool
+    let openDetail: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -693,6 +709,15 @@ private struct SystemDataExplanationRow: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+            }
+
+            if item.isDeletableCandidate {
+                Button(action: openDetail) {
+                    Label(settings.t(.detail), systemImage: "sidebar.right")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canOpenDetail)
+                .help(settings.t(.detail))
             }
         }
         .padding(12)

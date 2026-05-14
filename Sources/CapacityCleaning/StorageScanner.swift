@@ -152,6 +152,81 @@ actor StorageScanner {
             }
         }
 
+        let savedState = home.appendingPathComponent("Library/Saved Application State")
+        if fileManager.fileExists(atPath: savedState.path) {
+            let measure = measureDirectory(savedState, maxDepth: 2)
+            if measure.bytes > 0 {
+                append(
+                    "saved-application-state",
+                    name: "Saved Application State",
+                    path: savedState.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "アプリのウィンドウ復元や終了時状態です。削除すると一部アプリの復元状態は消えますが、必要に応じて再作成されます。"
+                )
+            }
+        }
+
+        let diagnosticReports = home.appendingPathComponent("Library/Logs/DiagnosticReports")
+        if fileManager.fileExists(atPath: diagnosticReports.path) {
+            let measure = measureDirectory(diagnosticReports, maxDepth: 2)
+            if measure.bytes > 0 {
+                append(
+                    "diagnostic-reports",
+                    name: "Diagnostic Reports",
+                    path: diagnosticReports.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "クラッシュログや診断レポートです。古いものは削除できますが、直近の不具合調査に使う場合があります。"
+                )
+            }
+        }
+
+        let xcodeDeviceSupport = home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport")
+        if fileManager.fileExists(atPath: xcodeDeviceSupport.path) {
+            let measure = measureDirectory(xcodeDeviceSupport, maxDepth: 3)
+            if measure.bytes > 0 {
+                append(
+                    "xcode-device-support",
+                    name: "Xcode DeviceSupport",
+                    path: xcodeDeviceSupport.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "接続したiPhoneやiPad用にXcodeが保存したサポートデータです。古いOS端末を使わない場合は削除候補になります。"
+                )
+            }
+        }
+
+        let xcodeArchives = home.appendingPathComponent("Library/Developer/Xcode/Archives")
+        if fileManager.fileExists(atPath: xcodeArchives.path) {
+            let measure = measureDirectory(xcodeArchives, maxDepth: 3)
+            if measure.bytes > 0 {
+                append(
+                    "xcode-archives",
+                    name: "Xcode Archives",
+                    path: xcodeArchives.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "Xcodeの配布用アーカイブです。削除すると再アップロードや再署名に必要な履歴を失う可能性があります。不要なものだけ確認してください。"
+                )
+            }
+        }
+
+        let simulatorCaches = home.appendingPathComponent("Library/Developer/CoreSimulator/Caches")
+        if fileManager.fileExists(atPath: simulatorCaches.path) {
+            let measure = measureDirectory(simulatorCaches, maxDepth: 3)
+            if measure.bytes > 0 {
+                append(
+                    "simulator-caches",
+                    name: "Simulator Caches",
+                    path: simulatorCaches.path,
+                    bytes: measure.bytes,
+                    isDeletableCandidate: true,
+                    reason: "Simulatorが作るキャッシュです。削除後に必要なデータは再生成されますが、SimulatorやXcodeを終了してから操作してください。"
+                )
+            }
+        }
+
         if let hiddenBytes, hiddenBytes > 0 {
             append(
                 "hidden-estimate",
@@ -343,6 +418,51 @@ actor StorageScanner {
                 category: .systemDataEstimate,
                 level: .review,
                 reason: "iPhoneやiPadのローカルバックアップです。削除するとそのバックアップから復元できなくなるため、必要性を確認してください。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Saved Application State",
+                url: home.appendingPathComponent("Library/Saved Application State"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "アプリのウィンドウ復元や終了時状態です。削除すると一部アプリの復元状態は消えますが、必要に応じて再作成されます。",
+                minimumBytesForDisplay: 10 * 1024 * 1024,
+                maxDepth: 2
+            ),
+            ScanRoot(
+                name: "Diagnostic Reports",
+                url: home.appendingPathComponent("Library/Logs/DiagnosticReports"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "クラッシュログや診断レポートです。古いものは削除できますが、直近の不具合調査に使う場合があります。",
+                minimumBytesForDisplay: 10 * 1024 * 1024,
+                maxDepth: 2
+            ),
+            ScanRoot(
+                name: "Xcode DeviceSupport",
+                url: home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "接続したiPhoneやiPad用にXcodeが保存したサポートデータです。古いOS端末を使わない場合は削除候補になります。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Xcode Archives",
+                url: home.appendingPathComponent("Library/Developer/Xcode/Archives"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "Xcodeの配布用アーカイブです。削除すると再アップロードや再署名に必要な履歴を失う可能性があります。不要なものだけ確認してください。",
+                minimumBytesForDisplay: byteThreshold,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Simulator Caches",
+                url: home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Simulatorが作るキャッシュです。削除後に必要なデータは再生成されますが、SimulatorやXcodeを終了してから操作してください。",
                 minimumBytesForDisplay: 100 * 1024 * 1024,
                 maxDepth: 3
             ),
