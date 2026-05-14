@@ -43,7 +43,7 @@ struct SettingsView: View {
                 }
 
                 Section(settings.t(.updates)) {
-                    LabeledContent(settings.t(.currentVersion), value: updater.displayedReleaseName)
+                    LabeledContent(settings.t(.currentVersion), value: updater.installedBuildName)
 
                     Toggle(settings.t(.autoCheckUpdates), isOn: $settings.checksForUpdatesOnLaunch)
 

@@ -53,8 +53,11 @@ final class UpdateManager: ObservableObject {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.1"
     }
 
-    var displayedReleaseName: String {
-        latest?.releaseName ?? currentVersion
+    var installedBuildName: String {
+        if let value = Bundle.main.object(forInfoDictionaryKey: "CCBuildName") as? String, !value.isEmpty {
+            return value
+        }
+        return Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "capacity-cleaning"
     }
 
     var hasUpdate: Bool {

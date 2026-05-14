@@ -48,6 +48,30 @@ detach_dmg() {
     /usr/bin/hdiutil detach -force "$target" -quiet
 }
 
+build_name() {
+    if [ -n "${BUILD_NAME:-}" ]; then
+        printf "%s" "$BUILD_NAME"
+        return 0
+    fi
+
+    if [ "${GITHUB_REF:-}" != "" ] && [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+        printf "%s" "${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+        return 0
+    fi
+
+    if [ -n "${GITHUB_SHA:-}" ]; then
+        printf "master %.7s" "$GITHUB_SHA"
+        return 0
+    fi
+
+    if short_sha="$(/usr/bin/git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null)"; then
+        printf "local-%s" "$short_sha"
+        return 0
+    fi
+
+    printf "local build"
+}
+
 cleanup() {
     if [ -n "$MOUNT_DIR" ]; then
         detach_dmg "$MOUNT_DIR" || true
@@ -65,6 +89,10 @@ cd "$ROOT_DIR"
 /bin/cp ".build/$CONFIGURATION/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 /bin/chmod 755 "$MACOS_DIR/$APP_NAME"
 /bin/cp "$ROOT_DIR/packaging/Info.plist" "$CONTENTS_DIR/Info.plist"
+BUILD_NAME_VALUE="$(build_name)"
+if ! /usr/libexec/PlistBuddy -c "Set :CCBuildName $BUILD_NAME_VALUE" "$CONTENTS_DIR/Info.plist" 2>/dev/null; then
+    /usr/libexec/PlistBuddy -c "Add :CCBuildName string $BUILD_NAME_VALUE" "$CONTENTS_DIR/Info.plist"
+fi
 /usr/bin/swift "$ROOT_DIR/scripts/create_app_icon.swift" "$PACKAGE_DIR/AppIcon.iconset"
 /usr/bin/iconutil -c icns "$PACKAGE_DIR/AppIcon.iconset" -o "$RESOURCES_DIR/AppIcon.icns"
 
