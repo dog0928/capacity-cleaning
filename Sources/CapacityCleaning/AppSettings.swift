@@ -199,14 +199,14 @@ enum AppStrings {
         .settings: "設定",
         .language: "言語",
         .updates: "アップデート",
-        .currentVersion: "現在のバージョン",
+        .currentVersion: "最新リリース",
         .autoCheckUpdates: "起動時にアップデートを確認",
         .checkForUpdates: "アップデートを確認",
         .checkingForUpdates: "確認中",
         .downloadUpdate: "アップデートを取得",
         .downloadingUpdate: "取得中",
         .openInstaller: "取得したDMGを開く",
-        .applyUpdate: "適用して再起動",
+        .applyUpdate: "アップデートを適用",
         .applyingUpdate: "適用中",
         .updateAvailable: "新しいバージョン %@ が利用できます。",
         .upToDate: "最新です。",
@@ -214,7 +214,7 @@ enum AppStrings {
         .updateFailed: "アップデート確認に失敗しました。",
         .downloadedTo: "保存先: %@",
         .releasePage: "リリースページ",
-        .updateInstallNote: "取得後に「適用して再起動」を押すと、アプリを終了して置き換え、更新版を起動します。失敗した場合はDMGを開いて手動でApplicationsへドラッグしてください。",
+        .updateInstallNote: "「アップデートを適用」を押すと、DMGを取得して自動でアプリを置き換え、更新版を起動します。",
         .close: "閉じる"
     ]
 
@@ -273,14 +273,14 @@ enum AppStrings {
         .settings: "Settings",
         .language: "Language",
         .updates: "Updates",
-        .currentVersion: "Current Version",
+        .currentVersion: "Latest Release",
         .autoCheckUpdates: "Check for updates on launch",
         .checkForUpdates: "Check for Updates",
         .checkingForUpdates: "Checking",
         .downloadUpdate: "Download Update",
         .downloadingUpdate: "Downloading",
         .openInstaller: "Open Downloaded DMG",
-        .applyUpdate: "Apply and Relaunch",
+        .applyUpdate: "Apply Update",
         .applyingUpdate: "Applying",
         .updateAvailable: "Version %@ is available.",
         .upToDate: "You are up to date.",
@@ -288,7 +288,7 @@ enum AppStrings {
         .updateFailed: "Failed to check for updates.",
         .downloadedTo: "Saved to: %@",
         .releasePage: "Release Page",
-        .updateInstallNote: "After downloading, Apply and Relaunch quits the app, replaces it, and opens the updated version. If that fails, open the DMG and drag the app to Applications manually.",
+        .updateInstallNote: "Apply Update downloads the DMG, replaces the app automatically, and opens the updated version.",
         .close: "Close"
     ]
 
@@ -331,6 +331,18 @@ enum AppStrings {
         "全ユーザー共通のログです。原因調査や管理者権限に関わるため、容量把握のみ行います。": "System-wide logs shared by all users. They are shown for visibility because they may be needed for diagnostics or require admin permissions.",
         "macOSアップデート用データです。削除するとアップデートや復旧に影響する可能性があるため表示のみです。": "macOS update data. It is view-only because removing it can affect updates or recovery.",
         "インストール済みアプリ本体です。不要なアプリや巨大なアプリを確認するための表示です。": "Installed applications. Review this to find unused or unusually large apps.",
-        "アプリコンテナ内のキャッシュです。アプリ終了後なら再生成されやすい領域ですが、対象アプリ名を確認してください。": "Cache inside an app container. It is usually regenerated after quitting the app, but confirm which app owns it."
+        "アプリコンテナ内のキャッシュです。アプリ終了後なら再生成されやすい領域ですが、対象アプリ名を確認してください。": "Cache inside an app container. It is usually regenerated after quitting the app, but confirm which app owns it.",
+        "QuickLookのサムネイルキャッシュです。必要に応じて再生成されるため削除候補になります。": "QuickLook thumbnail cache. It is regenerated when needed, so it is a cleanup candidate.",
+        "メッセージの添付ファイルです。削除すると会話内の添付を失う可能性があるため、不要なものだけ確認してください。": "Messages attachments. Removing them can remove attachments from conversations, so clean only items you do not need.",
+        "メールから開いた添付ファイルの保存領域です。必要な添付を別保存している場合は削除候補になります。": "Storage for attachments opened from Mail. It is a cleanup candidate if needed attachments were saved elsewhere.",
+        "iPhoneやiPadのアップデートファイルです。必要になれば再取得できるため削除候補になります。": "iPhone and iPad update files. They can be downloaded again when needed, so they are cleanup candidates.",
+        "Xcodeが保存した実機デバイスログです。古いログは削除候補になります。": "Device logs saved by Xcode. Older logs are cleanup candidates.",
+        "SwiftUI Previews用のSimulatorデータです。Xcodeを終了してから不要なものを確認してください。": "Simulator data for SwiftUI Previews. Quit Xcode first, then review unneeded items.",
+        "Swift Package Managerのキャッシュです。必要時に再取得されます。": "Swift Package Manager cache. It can be fetched again when needed.",
+        "Homebrewのダウンロードキャッシュです。必要時に再取得できます。": "Homebrew download cache. It can be fetched again when needed.",
+        "Python pipのキャッシュです。必要時に再取得されます。": "Python pip cache. It can be fetched again when needed.",
+        "Gradleの依存関係キャッシュです。ビルド時に再取得されます。": "Gradle dependency cache. It is downloaded again during builds.",
+        "Mavenのローカル依存関係リポジトリです。再取得できますが、次回ビルド時間が増える可能性があります。": "Maven local dependency repository. It can be downloaded again, but the next build may take longer.",
+        "Rust Cargoのレジストリキャッシュです。必要時に再取得されます。": "Rust Cargo registry cache. It can be fetched again when needed."
     ]
 }

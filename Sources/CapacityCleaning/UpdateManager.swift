@@ -13,6 +13,7 @@ struct ReleaseAsset: Decodable {
 
 struct GitHubRelease: Decodable {
     let tagName: String
+    let name: String?
     let htmlURL: URL
     let draft: Bool
     let prerelease: Bool
@@ -20,6 +21,7 @@ struct GitHubRelease: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
+        case name
         case htmlURL = "html_url"
         case draft
         case prerelease
@@ -29,6 +31,7 @@ struct GitHubRelease: Decodable {
 
 struct UpdateInfo {
     let version: String
+    let releaseName: String
     let releaseURL: URL
     let asset: ReleaseAsset
     let isNewerThanCurrent: Bool
@@ -48,6 +51,10 @@ final class UpdateManager: ObservableObject {
 
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.1"
+    }
+
+    var displayedReleaseName: String {
+        latest?.releaseName ?? currentVersion
     }
 
     var hasUpdate: Bool {
@@ -88,7 +95,18 @@ final class UpdateManager: ObservableObject {
     }
 
     func downloadUpdate() async {
-        guard let latest, latest.isNewerThanCurrent, !isDownloading else { return }
+        await downloadUpdate(applyAfterDownload: false)
+    }
+
+    func downloadAndApplyUpdate() async {
+        if latest == nil {
+            await checkForUpdates()
+        }
+        await downloadUpdate(applyAfterDownload: true)
+    }
+
+    private func downloadUpdate(applyAfterDownload: Bool) async {
+        guard let latest, latest.isNewerThanCurrent, !isDownloading, !isApplying else { return }
         isDownloading = true
         errorMessage = nil
         defer { isDownloading = false }
@@ -97,13 +115,16 @@ final class UpdateManager: ObservableObject {
             var request = URLRequest(url: latest.asset.browserDownloadURL)
             request.setValue("capacity-cleaning", forHTTPHeaderField: "User-Agent")
             let (temporaryURL, _) = try await URLSession.shared.download(for: request)
-            let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-                ?? FileManager.default.homeDirectoryForCurrentUser
             let safeVersion = latest.version.replacingOccurrences(of: "/", with: "-")
-            let target = downloads.appendingPathComponent("capacity-cleaning-\(safeVersion)-\(architectureName).dmg")
+            let target = FileManager.default.temporaryDirectory
+                .appendingPathComponent("capacity-cleaning-\(safeVersion)-\(architectureName)-\(UUID().uuidString).dmg")
             try? FileManager.default.removeItem(at: target)
             try FileManager.default.moveItem(at: temporaryURL, to: target)
             downloadedDMG = target
+
+            if applyAfterDownload {
+                applyDownloadedUpdate()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -203,8 +224,11 @@ final class UpdateManager: ObservableObject {
             guard !release.draft, !release.prerelease else { return nil }
             guard let asset = matchingAsset(in: release) else { return nil }
             let version = displayVersion(for: release.tagName)
+            let trimmedReleaseName = release.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let releaseName = trimmedReleaseName?.isEmpty == false ? trimmedReleaseName ?? release.tagName : release.tagName
             return UpdateInfo(
                 version: version,
+                releaseName: releaseName,
                 releaseURL: release.htmlURL,
                 asset: asset,
                 isNewerThanCurrent: isReleaseTagNewer(release.tagName)

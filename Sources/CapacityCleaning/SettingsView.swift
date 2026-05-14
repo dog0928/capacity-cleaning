@@ -43,7 +43,7 @@ struct SettingsView: View {
                 }
 
                 Section(settings.t(.updates)) {
-                    LabeledContent(settings.t(.currentVersion), value: updater.currentVersion)
+                    LabeledContent(settings.t(.currentVersion), value: updater.displayedReleaseName)
 
                     Toggle(settings.t(.autoCheckUpdates), isOn: $settings.checksForUpdatesOnLaunch)
 
@@ -68,28 +68,14 @@ struct SettingsView: View {
                         .disabled(updater.isChecking)
 
                         Button {
-                            Task { await updater.downloadUpdate() }
+                            Task { await updater.downloadAndApplyUpdate() }
                         } label: {
                             Label(
-                                updater.isDownloading ? settings.t(.downloadingUpdate) : settings.t(.downloadUpdate),
-                                systemImage: "square.and.arrow.down"
+                                updateButtonTitle,
+                                systemImage: "square.and.arrow.down.badge.checkmark"
                             )
                         }
-                        .disabled(!updater.hasUpdate || updater.isDownloading)
-
-                        Button {
-                            updater.openDownloadedInstaller()
-                        } label: {
-                            Label(settings.t(.openInstaller), systemImage: "shippingbox")
-                        }
-                        .disabled(updater.downloadedDMG == nil)
-                    }
-
-                    if let downloadedDMG = updater.downloadedDMG {
-                        Text(String(format: settings.t(.downloadedTo), downloadedDMG.path))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
+                        .disabled(updater.latest?.isNewerThanCurrent == false || updater.isChecking || updater.isDownloading || updater.isApplying)
                     }
 
                     Text(settings.t(.updateInstallNote))
@@ -111,9 +97,22 @@ struct SettingsView: View {
 
     private var statusText: String {
         if updater.statusKey == .updateAvailable, let latest = updater.latest {
-            return String(format: settings.t(.updateAvailable), latest.version)
+            return String(format: settings.t(.updateAvailable), latest.releaseName)
         }
         return settings.t(updater.statusKey)
+    }
+
+    private var updateButtonTitle: String {
+        if updater.isChecking {
+            return settings.t(.checkingForUpdates)
+        }
+        if updater.isApplying {
+            return settings.t(.applyingUpdate)
+        }
+        if updater.isDownloading {
+            return settings.t(.downloadingUpdate)
+        }
+        return settings.t(.applyUpdate)
     }
 }
 

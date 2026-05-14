@@ -229,6 +229,34 @@ actor StorageScanner {
             }
         }
 
+        let moreDeletableSystemData = [
+            ("quicklook-cache", "QuickLook Thumbnail Cache", home.appendingPathComponent("Library/Caches/com.apple.QuickLook.thumbnailcache"), "QuickLookのサムネイルキャッシュです。必要に応じて再生成されるため削除候補になります。"),
+            ("messages-attachments", "Messages Attachments", home.appendingPathComponent("Library/Messages/Attachments"), "メッセージの添付ファイルです。削除すると会話内の添付を失う可能性があるため、不要なものだけ確認してください。"),
+            ("mail-downloads", "Mail Downloads", home.appendingPathComponent("Library/Containers/com.apple.mail/Data/Library/Mail Downloads"), "メールから開いた添付ファイルの保存領域です。必要な添付を別保存している場合は削除候補になります。"),
+            ("ios-software-updates", "iOS Software Updates", home.appendingPathComponent("Library/iTunes/iPhone Software Updates"), "iPhoneやiPadのアップデートファイルです。必要になれば再取得できるため削除候補になります。"),
+            ("xcode-ios-device-logs", "Xcode iOS Device Logs", home.appendingPathComponent("Library/Developer/Xcode/iOS Device Logs"), "Xcodeが保存した実機デバイスログです。古いログは削除候補になります。"),
+            ("xcode-previews-devices", "Xcode Previews Simulator Devices", home.appendingPathComponent("Library/Developer/Xcode/UserData/Previews/Simulator Devices"), "SwiftUI Previews用のSimulatorデータです。Xcodeを終了してから不要なものを確認してください。"),
+            ("swiftpm-cache", "SwiftPM Cache", home.appendingPathComponent("Library/Caches/org.swift.swiftpm"), "Swift Package Managerのキャッシュです。必要時に再取得されます。"),
+            ("homebrew-cache", "Homebrew Cache", home.appendingPathComponent("Library/Caches/Homebrew"), "Homebrewのダウンロードキャッシュです。必要時に再取得できます。"),
+            ("pip-cache", "pip Cache", home.appendingPathComponent("Library/Caches/pip"), "Python pipのキャッシュです。必要時に再取得されます。"),
+            ("gradle-cache", "Gradle Cache", home.appendingPathComponent(".gradle/caches"), "Gradleの依存関係キャッシュです。ビルド時に再取得されます。"),
+            ("maven-cache", "Maven Repository Cache", home.appendingPathComponent(".m2/repository"), "Mavenのローカル依存関係リポジトリです。再取得できますが、次回ビルド時間が増える可能性があります。"),
+            ("cargo-registry-cache", "Cargo Registry Cache", home.appendingPathComponent(".cargo/registry"), "Rust Cargoのレジストリキャッシュです。必要時に再取得されます。")
+        ]
+
+        for item in moreDeletableSystemData where fileManager.fileExists(atPath: item.2.path) {
+            let measure = measureDirectory(item.2, maxDepth: 3)
+            guard measure.bytes > 0 else { continue }
+            append(
+                item.0,
+                name: item.1,
+                path: item.2.path,
+                bytes: measure.bytes,
+                isDeletableCandidate: true,
+                reason: item.3
+            )
+        }
+
         if let hiddenBytes, hiddenBytes > 0 {
             append(
                 "hidden-estimate",
@@ -517,8 +545,116 @@ actor StorageScanner {
                 category: .systemDataEstimate,
                 level: .review,
                 reason: "アプリやWebViewが保存するHTTPデータです。ログイン状態やオフラインデータに関係する場合があるため確認対象です。",
-                minimumBytesForDisplay: 100 * 1024 * 1024,
+                minimumBytesForDisplay: 25 * 1024 * 1024,
                 maxDepth: 3
+            ),
+            ScanRoot(
+                name: "QuickLook Thumbnail Cache",
+                url: home.appendingPathComponent("Library/Caches/com.apple.QuickLook.thumbnailcache"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "QuickLookのサムネイルキャッシュです。必要に応じて再生成されるため削除候補になります。",
+                minimumBytesForDisplay: 10 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Messages Attachments",
+                url: home.appendingPathComponent("Library/Messages/Attachments"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "メッセージの添付ファイルです。削除すると会話内の添付を失う可能性があるため、不要なものだけ確認してください。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 4
+            ),
+            ScanRoot(
+                name: "Mail Downloads",
+                url: home.appendingPathComponent("Library/Containers/com.apple.mail/Data/Library/Mail Downloads"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "メールから開いた添付ファイルの保存領域です。必要な添付を別保存している場合は削除候補になります。",
+                minimumBytesForDisplay: 25 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "iOS Software Updates",
+                url: home.appendingPathComponent("Library/iTunes/iPhone Software Updates"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "iPhoneやiPadのアップデートファイルです。必要になれば再取得できるため削除候補になります。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 2
+            ),
+            ScanRoot(
+                name: "Xcode iOS Device Logs",
+                url: home.appendingPathComponent("Library/Developer/Xcode/iOS Device Logs"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Xcodeが保存した実機デバイスログです。古いログは削除候補になります。",
+                minimumBytesForDisplay: 10 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Xcode Previews Simulator Devices",
+                url: home.appendingPathComponent("Library/Developer/Xcode/UserData/Previews/Simulator Devices"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "SwiftUI Previews用のSimulatorデータです。Xcodeを終了してから不要なものを確認してください。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "SwiftPM Cache",
+                url: home.appendingPathComponent("Library/Caches/org.swift.swiftpm"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Swift Package Managerのキャッシュです。必要時に再取得されます。",
+                minimumBytesForDisplay: 25 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Homebrew Cache",
+                url: home.appendingPathComponent("Library/Caches/Homebrew"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Homebrewのダウンロードキャッシュです。必要時に再取得できます。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "pip Cache",
+                url: home.appendingPathComponent("Library/Caches/pip"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Python pipのキャッシュです。必要時に再取得されます。",
+                minimumBytesForDisplay: 25 * 1024 * 1024,
+                maxDepth: 3
+            ),
+            ScanRoot(
+                name: "Gradle Cache",
+                url: home.appendingPathComponent(".gradle/caches"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Gradleの依存関係キャッシュです。ビルド時に再取得されます。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 4
+            ),
+            ScanRoot(
+                name: "Maven Repository Cache",
+                url: home.appendingPathComponent(".m2/repository"),
+                category: .systemDataEstimate,
+                level: .review,
+                reason: "Mavenのローカル依存関係リポジトリです。再取得できますが、次回ビルド時間が増える可能性があります。",
+                minimumBytesForDisplay: 100 * 1024 * 1024,
+                maxDepth: 4
+            ),
+            ScanRoot(
+                name: "Cargo Registry Cache",
+                url: home.appendingPathComponent(".cargo/registry"),
+                category: .systemDataEstimate,
+                level: .safe,
+                reason: "Rust Cargoのレジストリキャッシュです。必要時に再取得されます。",
+                minimumBytesForDisplay: 50 * 1024 * 1024,
+                maxDepth: 4
             ),
             ScanRoot(
                 name: "System Cache Overview",
@@ -858,6 +994,15 @@ actor StorageScanner {
             || path.contains("/Library/Saved Application State")
             || path.contains("/Library/HTTPStorages")
             || path.contains("/Library/Application Support/MobileSync")
+            || path.contains("/Library/Caches/com.apple.QuickLook.thumbnailcache")
+            || path.contains("/Library/Messages/Attachments")
+            || path.contains("/Library/Mail Downloads")
+            || path.contains("/Library/iTunes/iPhone Software Updates")
+            || path.contains("/Library/Caches/Homebrew")
+            || path.contains("/Library/Caches/pip")
+            || path.contains("/.gradle/caches")
+            || path.contains("/.m2/repository")
+            || path.contains("/.cargo/registry")
             || path.contains("/var/folders") {
             return .systemDataEstimate
         }
