@@ -17,9 +17,40 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 DMG_PATH="$DIST_DIR/$DMG_NAME"
 MOUNT_DIR=""
 
+attach_dmg() {
+    local image_path="$1"
+    local mount_point="$2"
+
+    for _ in 1 2 3 4 5; do
+        if /usr/bin/hdiutil attach "$image_path" -mountpoint "$mount_point" -readwrite -noverify -noautoopen -quiet; then
+            return 0
+        fi
+        /bin/sleep 2
+    done
+
+    /usr/bin/hdiutil attach "$image_path" -mountpoint "$mount_point" -readwrite -noverify -noautoopen -quiet
+}
+
+detach_dmg() {
+    local target="$1"
+    if [ -z "$target" ]; then
+        return 0
+    fi
+
+    /bin/sync || true
+    for _ in 1 2 3 4 5; do
+        if /usr/bin/hdiutil detach "$target" -quiet 2>/dev/null; then
+            return 0
+        fi
+        /bin/sleep 2
+    done
+
+    /usr/bin/hdiutil detach -force "$target" -quiet
+}
+
 cleanup() {
     if [ -n "$MOUNT_DIR" ]; then
-        /usr/bin/hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null || /usr/bin/hdiutil detach -force "$MOUNT_DIR" -quiet 2>/dev/null || true
+        detach_dmg "$MOUNT_DIR" || true
     fi
 }
 trap cleanup EXIT
@@ -57,8 +88,11 @@ fi
     -format UDRW \
     "$PACKAGE_DIR/$APP_NAME-rw.dmg"
 
-MOUNT_DIR="$(/usr/bin/hdiutil attach "$PACKAGE_DIR/$APP_NAME-rw.dmg" -readwrite -noverify -noautoopen | /usr/bin/awk '/Apple_HFS/ {for (i = 3; i <= NF; i++) printf "%s%s", $i, (i < NF ? OFS : ORS); exit}')"
-if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR" ]; then
+MOUNT_DIR="$PACKAGE_DIR/dmg-mount"
+/bin/rm -rf "$MOUNT_DIR"
+/bin/mkdir -p "$MOUNT_DIR"
+attach_dmg "$PACKAGE_DIR/$APP_NAME-rw.dmg" "$MOUNT_DIR"
+if [ ! -d "$MOUNT_DIR" ]; then
     echo "error: failed to mount writable DMG" >&2
     exit 1
 fi
@@ -144,7 +178,15 @@ else
     echo "warning: Finder DMG background could not be applied; leaving install PNG visible as fallback." >&2
 fi
 
-/usr/bin/hdiutil detach "$MOUNT_DIR" -quiet
+/usr/bin/osascript >/dev/null 2>&1 <<EOF || true
+tell application "Finder"
+    try
+        close container window of (POSIX file "$MOUNT_DIR" as alias)
+    end try
+end tell
+EOF
+
+detach_dmg "$MOUNT_DIR"
 MOUNT_DIR=""
 
 /usr/bin/hdiutil convert "$PACKAGE_DIR/$APP_NAME-rw.dmg" \
