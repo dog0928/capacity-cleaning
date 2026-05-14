@@ -233,7 +233,7 @@ struct ContentView: View {
             HStack(alignment: .top, spacing: 18) {
                 Chart(report.summaries) { summary in
                     SectorMark(
-                        angle: .value("容量", summary.bytes),
+                        angle: .value("Storage", summary.bytes),
                         innerRadius: .ratio(0.58),
                         angularInset: 2
                     )
@@ -248,6 +248,10 @@ struct ContentView: View {
                         CategoryRow(summary: summary)
                     }
                 }
+            }
+
+            if let volumeInfo = report.volumeInfo {
+                VolumeStoragePanel(info: volumeInfo)
             }
         }
     }
@@ -528,6 +532,93 @@ private struct EmptyDetailPanel: View {
     }
 }
 
+private struct VolumeStoragePanel: View {
+    @EnvironmentObject private var settings: AppSettings
+    let info: VolumeStorageInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(settings.t(.hiddenSystemData))
+                    .font(.headline)
+                Spacer()
+                Text("\(settings.t(.hiddenSystemDataEstimate)): \(info.hiddenSystemBytes.formattedFileSize)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.purple)
+            }
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                let usedWidth = barWidth(bytes: info.usedBytes, total: info.totalBytes, width: width)
+                let explainedWidth = barWidth(bytes: info.explainedBytes, total: info.totalBytes, width: width)
+                let hiddenWidth = barWidth(bytes: info.hiddenSystemBytes, total: info.totalBytes, width: width)
+
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(.quaternary)
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.gray.opacity(0.28))
+                        .frame(width: usedWidth)
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.teal.opacity(0.75))
+                        .frame(width: explainedWidth)
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.purple.opacity(0.82))
+                        .frame(width: hiddenWidth)
+                        .offset(x: explainedWidth)
+                }
+            }
+            .frame(height: 12)
+
+            HStack(spacing: 10) {
+                StorageMetric(title: settings.t(.diskUsed), value: info.usedBytes.formattedFileSize, color: .gray)
+                StorageMetric(title: settings.t(.visualized), value: info.explainedBytes.formattedFileSize, color: .teal)
+                StorageMetric(title: settings.t(.hiddenSystemData), value: info.hiddenSystemBytes.formattedFileSize, color: .purple)
+                StorageMetric(title: settings.t(.diskAvailable), value: info.availableBytes.formattedFileSize, color: .green)
+            }
+
+            Text(settings.t(.hiddenSystemDataBody))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func barWidth(bytes: Int64, total: Int64, width: CGFloat) -> CGFloat {
+        guard total > 0 else { return 0 }
+        return max(0, min(width, width * CGFloat(Double(bytes) / Double(total))))
+    }
+}
+
+private struct StorageMetric: View {
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 7, height: 7)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 private struct CategoryRow: View {
     @EnvironmentObject private var settings: AppSettings
     let summary: CategorySummary
@@ -615,6 +706,7 @@ private struct CandidateRow: View {
         case .caches: return "tray.full"
         case .developer: return "hammer"
         case .system: return "gearshape.2"
+        case .systemDataEstimate: return "internaldrive"
         case .other: return "folder"
         }
     }

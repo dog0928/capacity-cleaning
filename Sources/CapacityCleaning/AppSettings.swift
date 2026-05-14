@@ -80,6 +80,12 @@ enum LocalizedKey: String {
     case waitingBody
     case scanStart
     case total
+    case diskUsed
+    case diskAvailable
+    case visualized
+    case hiddenSystemData
+    case hiddenSystemDataBody
+    case hiddenSystemDataEstimate
     case unreadable
     case targets
     case detail
@@ -154,6 +160,12 @@ enum AppStrings {
         .waitingBody: "スキャン後にカテゴリ別の容量、確認対象、詳細がこの画面に表示されます。",
         .scanStart: "スキャン開始",
         .total: "合計",
+        .diskUsed: "ディスク使用量",
+        .diskAvailable: "空き容量",
+        .visualized: "分類できた容量",
+        .hiddenSystemData: "見えないシステムデータ",
+        .hiddenSystemDataBody: "ディスク使用量から、このアプリが分類できた容量を差し引いた推定値です。APFSスナップショット、ローカルバックアップ、仮想メモリ、Spotlightインデックス、権限で読めない領域などが含まれる可能性があります。",
+        .hiddenSystemDataEstimate: "推定値",
         .unreadable: "読み取り不可",
         .targets: "確認対象",
         .detail: "詳細",
@@ -213,6 +225,12 @@ enum AppStrings {
         .waitingBody: "After scanning, category totals, review targets, and details appear here.",
         .scanStart: "Start Scan",
         .total: "Total",
+        .diskUsed: "Disk Used",
+        .diskAvailable: "Available",
+        .visualized: "Visualized",
+        .hiddenSystemData: "Hidden System Data",
+        .hiddenSystemDataBody: "Estimated by subtracting the storage this app could classify from total disk usage. It may include APFS snapshots, local backups, virtual memory, Spotlight indexes, and areas blocked by permissions.",
+        .hiddenSystemDataEstimate: "Estimate",
         .unreadable: "Unreadable",
         .targets: "Targets",
         .detail: "Details",
@@ -264,6 +282,7 @@ enum AppStrings {
         "Downloads内のインストーラ系ファイルです。インストール済みなら不要になっている可能性があります。": "Installer-style file in Downloads. It may be unnecessary if already installed.",
         "再生成されやすい領域の中身です。削除前にアプリが起動中でないことを確認してください。": "Content from an area that is often regenerated. Make sure related apps are not running.",
         "このフォルダーが親項目の容量を多く使っています。中身を確認してください。": "This folder uses a large share of the parent item. Inspect it before cleaning.",
-        "サイズの大きいファイルです。用途を確認してください。": "Large file. Confirm what it is used for."
+        "サイズの大きいファイルです。用途を確認してください。": "Large file. Confirm what it is used for.",
+        "スナップショット、仮想メモリ、インデックス、読み取り不可領域などの推定差分です。": "Estimated difference from snapshots, virtual memory, indexes, unreadable areas, and other hidden system data."
     ]
 }

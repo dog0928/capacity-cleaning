@@ -49,6 +49,12 @@ actor StorageScanner {
 
         candidates.append(contentsOf: discoverLargeFolders(in: home))
 
+        let explainedBytes = summaries.reduce(Int64(0)) { $0 + $1.value.bytes }
+        let volumeInfo = volumeStorageInfo(explainedBytes: explainedBytes)
+        if let hiddenBytes = volumeInfo?.hiddenSystemBytes, hiddenBytes > 0 {
+            summaries[.systemDataEstimate, default: (0, 0)].bytes += hiddenBytes
+        }
+
         let categorySummaries = StorageCategory.allCases.map { category in
             let value = summaries[category] ?? (0, 0)
             return CategorySummary(category: category, bytes: value.bytes, itemCount: value.count)
@@ -65,7 +71,29 @@ actor StorageScanner {
             homePath: home.path,
             summaries: categorySummaries,
             items: uniqueCandidates,
-            unreadablePaths: unreadablePaths
+            unreadablePaths: unreadablePaths,
+            volumeInfo: volumeInfo
+        )
+    }
+
+    private func volumeStorageInfo(explainedBytes: Int64) -> VolumeStorageInfo? {
+        let root = URL(fileURLWithPath: "/")
+        guard let values = try? root.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]),
+              let total = values.volumeTotalCapacity,
+              let available = values.volumeAvailableCapacity else {
+            return nil
+        }
+
+        let totalBytes = Int64(total)
+        let availableBytes = Int64(available)
+        let usedBytes = max(0, totalBytes - availableBytes)
+        let hiddenBytes = max(0, usedBytes - explainedBytes)
+        return VolumeStorageInfo(
+            totalBytes: totalBytes,
+            availableBytes: availableBytes,
+            usedBytes: usedBytes,
+            explainedBytes: explainedBytes,
+            hiddenSystemBytes: hiddenBytes
         )
     }
 

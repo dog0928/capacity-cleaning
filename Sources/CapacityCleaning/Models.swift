@@ -7,6 +7,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
     case caches = "キャッシュ"
     case developer = "開発データ"
     case system = "システム関連"
+    case systemDataEstimate = "見えないシステムデータ"
     case other = "その他"
 
     var id: String { rawValue }
@@ -18,6 +19,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .caches: return .yellow
         case .developer: return .mint
         case .system: return .red
+        case .systemDataEstimate: return .purple
         case .other: return .gray
         }
     }
@@ -34,6 +36,8 @@ enum StorageCategory: String, CaseIterable, Identifiable {
             return "Xcode、Simulator、パッケージ管理系の作業データです。"
         case .system:
             return "macOSや共有ライブラリなどの読み取り中心の領域です。"
+        case .systemDataEstimate:
+            return "スナップショット、仮想メモリ、インデックス、読み取り不可領域などの推定差分です。"
         case .other:
             return "分類できなかった大きめのフォルダです。"
         }
@@ -47,6 +51,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .caches: return "Caches"
         case .developer: return "Developer Data"
         case .system: return "System Related"
+        case .systemDataEstimate: return "Hidden System Data"
         case .other: return "Other"
         }
     }
@@ -64,6 +69,8 @@ enum StorageCategory: String, CaseIterable, Identifiable {
             return "Xcode, Simulator, and package manager working data."
         case .system:
             return "macOS and shared library areas. Mostly for visibility."
+        case .systemDataEstimate:
+            return "Estimated difference from snapshots, virtual memory, indexes, unreadable areas, and other hidden system data."
         case .other:
             return "Large folders that could not be classified."
         }
@@ -183,12 +190,21 @@ struct ItemDetail {
     let unreadablePaths: Int
 }
 
+struct VolumeStorageInfo {
+    let totalBytes: Int64
+    let availableBytes: Int64
+    let usedBytes: Int64
+    let explainedBytes: Int64
+    let hiddenSystemBytes: Int64
+}
+
 struct ScanReport {
     let generatedAt: Date
     let homePath: String
     let summaries: [CategorySummary]
     let items: [ScanItem]
     let unreadablePaths: Int
+    let volumeInfo: VolumeStorageInfo?
 
     var totalBytes: Int64 {
         summaries.reduce(0) { $0 + $1.bytes }
