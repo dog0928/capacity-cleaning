@@ -239,8 +239,15 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(alignment: .top, spacing: 18) {
-                Chart(report.summaries) { summary in
+            ViewThatFits(in: .horizontal) {
+                storageSummaryRow(report)
+                VStack(alignment: .leading, spacing: 12) {
+                    storageChart(report)
+                    storageLegend(report)
+                }
+            }
+
+            if let volumeInfo = report.volumeInfo {
                     SectorMark(
                         angle: .value("Storage", summary.bytes),
                         innerRadius: .ratio(0.58),
