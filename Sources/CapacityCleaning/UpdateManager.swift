@@ -10,6 +10,7 @@ struct ReleaseAsset: Decodable {
     enum CodingKeys: String, CodingKey {
         case name
         case browserDownloadURL = "browser_download_url"
+        case digest
     }
 }
 
