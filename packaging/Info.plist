@@ -22,6 +22,8 @@
     <string>1</string>
     <key>CCBuildName</key>
     <string>local build</string>
+    <key>CCBuildTag</key>
+    <string>local</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSMinimumSystemVersion</key>
