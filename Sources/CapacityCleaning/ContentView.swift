@@ -42,7 +42,12 @@ struct ContentView: View {
             viewModel.updateLanguage(settings.language)
             guard settings.checksForUpdatesOnLaunch, !didAutoCheckUpdates else { return }
             didAutoCheckUpdates = true
-            Task { await updater.checkForUpdates() }
+            Task {
+                await updater.checkForUpdates()
+                if settings.downloadsUpdatesAutomatically && updater.hasUpdate {
+                    await updater.downloadUpdate()
+                }
+            }
         }
         .onChange(of: settings.language) { _, newValue in
             viewModel.updateLanguage(newValue)
@@ -208,11 +213,15 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 18) {
             EmptySummaryPanel(scan: viewModel.scan)
 
-            HStack(alignment: .top, spacing: 18) {
-                EmptyListPanel()
-                    .frame(minWidth: 430, idealWidth: 500, maxWidth: 560)
-                EmptyDetailPanel()
-                    .frame(maxWidth: .infinity)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 18) {
+                    EmptyListPanel().frame(minWidth: 300, idealWidth: 420)
+                    EmptyDetailPanel().frame(maxWidth: .infinity)
+                }
+                VStack(alignment: .leading, spacing: 18) {
+                    EmptyListPanel()
+                    EmptyDetailPanel()
+                }
             }
         }
     }
