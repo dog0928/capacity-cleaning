@@ -46,8 +46,9 @@ struct SettingsView: View {
                     LabeledContent(settings.t(.currentVersion), value: updater.installedBuildName)
 
                     Toggle(settings.t(.autoCheckUpdates), isOn: $settings.checksForUpdatesOnLaunch)
+                    Toggle(settings.t(.autoDownloadUpdates), isOn: $settings.downloadsUpdatesAutomatically)
 
-                    Text(statusText)
+                    Text(updater.downloadedDMG != nil && updater.hasUpdate ? settings.t(.updateReady) : statusText)
                         .foregroundStyle(updater.statusKey == .updateFailed ? .red : .secondary)
 
                     if let errorMessage = updater.errorMessage {
@@ -75,7 +76,7 @@ struct SettingsView: View {
                                 systemImage: "square.and.arrow.down.badge.checkmark"
                             )
                         }
-                        .disabled(updater.latest?.isNewerThanCurrent == false || updater.isChecking || updater.isDownloading || updater.isApplying)
+                        .disabled(!updater.hasUpdate || updater.isChecking || updater.isDownloading || updater.isApplying)
                     }
 
                     Text(settings.t(.updateInstallNote))
@@ -92,7 +93,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
         }
-        .frame(width: 660, height: 560)
+        .frame(minWidth: 480, idealWidth: 620, minHeight: 480, idealHeight: 560)
     }
 
     private var statusText: String {
