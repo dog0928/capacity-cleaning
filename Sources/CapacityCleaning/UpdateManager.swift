@@ -332,9 +332,8 @@ final class UpdateManager: ObservableObject {
                 ? (trimmedName ?? release.tagName) : release.tagName
             let isNewer: Bool
             if release.tagName.hasPrefix("master-") {
-                isNewer = installedTag != release.tagName && installedTag != "" && !installedTag.hasPrefix("local")
-                    ? release.tagName != installedTag
-                    : (installedTag == "" || installedTag.hasPrefix("local"))
+                // Do not replace an explicitly versioned installation with a development build.
+                isNewer = !installedTag.hasPrefix("v") && installedTag != release.tagName
             } else {
                 isNewer = isVersion(version, newerThan: currentVersion)
             }
