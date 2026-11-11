@@ -943,17 +943,24 @@ actor StorageScanner {
             }
 
             for child in contents {
-                if isSymbolicLink(child) {
+                guard let values = try? child.resourceValues(forKeys: [
+                    .isSymbolicLinkKey, .isDirectoryKey,
+                    .totalFileAllocatedSizeKey, .fileAllocatedSizeKey
+                ]) else {
+                    unreadable += 1
                     continue
                 }
+                if values.isSymbolicLink == true { continue }
 
-                if isDirectory(child) {
-                    stack.append((child, current.depth + 1))
+                if values.isDirectory == true {
+                    if current.depth < maxDepth {
+                        stack.append((child, current.depth + 1))
+                    }
                     continue
                 }
 
                 files += 1
-                total += allocatedSize(child)
+                total += Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
             }
         }
 

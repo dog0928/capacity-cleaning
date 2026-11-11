@@ -48,6 +48,18 @@ detach_dmg() {
     /usr/bin/hdiutil detach -force "$target" -quiet
 }
 
+build_tag() {
+    if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+        printf "%s" "${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+    elif [ -n "${GITHUB_SHA:-}" ]; then
+        printf "master-%.7s" "$GITHUB_SHA"
+    elif short_sha="$(/usr/bin/git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null)"; then
+        printf "local-%s" "$short_sha"
+    else
+        printf "local"
+    fi
+}
+
 build_name() {
     if [ -n "${BUILD_NAME:-}" ]; then
         printf "%s" "$BUILD_NAME"
@@ -90,6 +102,11 @@ cd "$ROOT_DIR"
 /bin/chmod 755 "$MACOS_DIR/$APP_NAME"
 /bin/cp "$ROOT_DIR/packaging/Info.plist" "$CONTENTS_DIR/Info.plist"
 BUILD_NAME_VALUE="$(build_name)"
+BUILD_TAG_VALUE="$(build_tag)"
+/usr/libexec/PlistBuddy -c "Set :CCBuildTag $BUILD_TAG_VALUE" "$CONTENTS_DIR/Info.plist"
+if [[ "$BUILD_TAG_VALUE" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${BASH_REMATCH[1]}" "$CONTENTS_DIR/Info.plist"
+fi
 if ! /usr/libexec/PlistBuddy -c "Set :CCBuildName $BUILD_NAME_VALUE" "$CONTENTS_DIR/Info.plist" 2>/dev/null; then
     /usr/libexec/PlistBuddy -c "Add :CCBuildName string $BUILD_NAME_VALUE" "$CONTENTS_DIR/Info.plist"
 fi

@@ -14,6 +14,7 @@ final class AppViewModel: ObservableObject {
 
     private let scanner = StorageScanner()
     private var language: AppLanguage = .japanese
+    private var selectionGeneration = 0
 
     var filteredItems: [ScanItem] {
         guard let report else { return [] }
@@ -40,6 +41,7 @@ final class AppViewModel: ObservableObject {
     func scan() {
         guard !isScanning else { return }
         isScanning = true
+        selectionGeneration += 1
         selectedItem = nil
         selectedDetail = nil
         selectedTrashEntryIDs.removeAll()
@@ -79,6 +81,8 @@ final class AppViewModel: ObservableObject {
     }
 
     func select(_ item: ScanItem) {
+        selectionGeneration += 1
+        let generation = selectionGeneration
         selectedItem = item
         selectedDetail = nil
         selectedTrashEntryIDs.removeAll()
@@ -89,7 +93,7 @@ final class AppViewModel: ObservableObject {
 
         Task {
             let detail = await scanner.detail(for: item)
-            guard selectedItem?.id == item.id else { return }
+            guard selectionGeneration == generation, selectedItem?.id == item.id else { return }
             selectedDetail = detail
             isLoadingDetail = false
             message = language.resolved == .english

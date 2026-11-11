@@ -42,7 +42,12 @@ struct ContentView: View {
             viewModel.updateLanguage(settings.language)
             guard settings.checksForUpdatesOnLaunch, !didAutoCheckUpdates else { return }
             didAutoCheckUpdates = true
-            Task { await updater.checkForUpdates() }
+            Task {
+                await updater.checkForUpdates()
+                if settings.downloadsUpdatesAutomatically && updater.hasUpdate {
+                    await updater.downloadUpdate()
+                }
+            }
         }
         .onChange(of: settings.language) { _, newValue in
             viewModel.updateLanguage(newValue)
@@ -208,11 +213,15 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 18) {
             EmptySummaryPanel(scan: viewModel.scan)
 
-            HStack(alignment: .top, spacing: 18) {
-                EmptyListPanel()
-                    .frame(minWidth: 430, idealWidth: 500, maxWidth: 560)
-                EmptyDetailPanel()
-                    .frame(maxWidth: .infinity)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 18) {
+                    EmptyListPanel().frame(minWidth: 300, idealWidth: 420)
+                    EmptyDetailPanel().frame(maxWidth: .infinity)
+                }
+                VStack(alignment: .leading, spacing: 18) {
+                    EmptyListPanel()
+                    EmptyDetailPanel()
+                }
             }
         }
     }
@@ -230,23 +239,11 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(alignment: .top, spacing: 18) {
-                Chart(report.summaries) { summary in
-                    SectorMark(
-                        angle: .value("Storage", summary.bytes),
-                        innerRadius: .ratio(0.58),
-                        angularInset: 2
-                    )
-                    .foregroundStyle(summary.category.color)
-                    .cornerRadius(5)
-                }
-                .chartLegend(.hidden)
-                .frame(width: 250, height: 250)
-
-                VStack(spacing: 10) {
-                    ForEach(report.summaries) { summary in
-                        CategoryRow(summary: summary)
-                    }
+            ViewThatFits(in: .horizontal) {
+                storageSummaryRow(report)
+                VStack(alignment: .leading, spacing: 12) {
+                    storageChart(report)
+                    storageLegend(report)
                 }
             }
 
@@ -265,12 +262,46 @@ struct ContentView: View {
         }
     }
 
-    private func mainWorkArea(_ report: ScanReport) -> some View {
+    private func storageChart(_ report: ScanReport) -> some View {
+        Chart(report.summaries) { summary in
+            SectorMark(
+                angle: .value("Storage", summary.bytes),
+                innerRadius: .ratio(0.58),
+                angularInset: 2
+            )
+            .foregroundStyle(summary.category.color)
+            .cornerRadius(5)
+        }
+        .chartLegend(.hidden)
+        .frame(width: 220, height: 220)
+    }
+
+    private func storageLegend(_ report: ScanReport) -> some View {
+        VStack(spacing: 10) {
+            ForEach(report.summaries) { item in
+                CategoryRow(summary: item)
+            }
+        }
+    }
+
+    private func storageSummaryRow(_ report: ScanReport) -> some View {
         HStack(alignment: .top, spacing: 18) {
-            candidateList(report)
-                .frame(minWidth: 430, idealWidth: 500, maxWidth: 560)
-            detailPanel
+            storageChart(report)
+            storageLegend(report)
                 .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func mainWorkArea(_ report: ScanReport) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 18) {
+                candidateList(report).frame(minWidth: 300, idealWidth: 420)
+                detailPanel.frame(maxWidth: .infinity)
+            }
+            VStack(alignment: .leading, spacing: 18) {
+                candidateList(report)
+                detailPanel
+            }
         }
     }
 

@@ -40,10 +40,17 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var downloadsUpdatesAutomatically: Bool {
+        didSet {
+            UserDefaults.standard.set(downloadsUpdatesAutomatically, forKey: "downloadsUpdatesAutomatically")
+        }
+    }
+
     init() {
         let languageRaw = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.system.rawValue
         language = AppLanguage(rawValue: languageRaw) ?? .system
         checksForUpdatesOnLaunch = UserDefaults.standard.object(forKey: "checksForUpdatesOnLaunch") as? Bool ?? true
+        downloadsUpdatesAutomatically = UserDefaults.standard.object(forKey: "downloadsUpdatesAutomatically") as? Bool ?? true
     }
 
     func t(_ key: LocalizedKey) -> String {
@@ -112,6 +119,8 @@ enum LocalizedKey: String {
     case updates
     case currentVersion
     case autoCheckUpdates
+    case autoDownloadUpdates
+    case updateReady
     case checkForUpdates
     case checkingForUpdates
     case downloadUpdate
@@ -201,6 +210,8 @@ enum AppStrings {
         .updates: "アップデート",
         .currentVersion: "インストール済みビルド",
         .autoCheckUpdates: "起動時にアップデートを確認",
+        .autoDownloadUpdates: "アップデートを自動ダウンロード",
+        .updateReady: "アップデートのダウンロードが完了しました。適用するとアプリを再起動します。",
         .checkForUpdates: "アップデートを確認",
         .checkingForUpdates: "確認中",
         .downloadUpdate: "アップデートを取得",
@@ -275,6 +286,8 @@ enum AppStrings {
         .updates: "Updates",
         .currentVersion: "Installed Build",
         .autoCheckUpdates: "Check for updates on launch",
+        .autoDownloadUpdates: "Automatically download updates",
+        .updateReady: "Update downloaded. Applying it will relaunch the app.",
         .checkForUpdates: "Check for Updates",
         .checkingForUpdates: "Checking",
         .downloadUpdate: "Download Update",

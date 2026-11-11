@@ -1,13 +1,16 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 struct ReleaseAsset: Decodable {
     let name: String
     let browserDownloadURL: URL
+    let digest: String?
 
     enum CodingKeys: String, CodingKey {
         case name
         case browserDownloadURL = "browser_download_url"
+        case digest
     }
 }
 
@@ -18,6 +21,7 @@ struct GitHubRelease: Decodable {
     let draft: Bool
     let prerelease: Bool
     let assets: [ReleaseAsset]
+    let publishedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
@@ -26,6 +30,7 @@ struct GitHubRelease: Decodable {
         case draft
         case prerelease
         case assets
+        case publishedAt = "published_at"
     }
 }
 
@@ -34,6 +39,7 @@ struct UpdateInfo {
     let releaseName: String
     let releaseURL: URL
     let asset: ReleaseAsset
+    let tag: String
     let isNewerThanCurrent: Bool
 }
 
@@ -47,7 +53,12 @@ final class UpdateManager: ObservableObject {
     @Published var statusKey: LocalizedKey = .updateUnknown
     @Published var errorMessage: String?
 
-    private let releasesEndpoint = URL(string: "https://api.github.com/repos/dog0928/capacity-cleaning/releases?per_page=20")!
+    private let releasesEndpoint = URL(string: "https://api.github.com/repos/dog0928/capacity-cleaning/releases?per_page=30")!
+    private let releaseCache = FileManager.default.temporaryDirectory.appendingPathComponent("capacity-cleaning-updates", isDirectory: true)
+
+    var installedTag: String {
+        Bundle.main.object(forInfoDictionaryKey: "CCBuildTag") as? String ?? ""
+    }
 
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.1"
@@ -80,7 +91,9 @@ final class UpdateManager: ObservableObject {
                 throw URLError(.badServerResponse)
             }
 
-            let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let releases = try decoder.decode([GitHubRelease].self, from: data)
             guard let info = bestUpdate(from: releases) else {
                 latest = nil
                 statusKey = .updateFailed
@@ -89,6 +102,9 @@ final class UpdateManager: ObservableObject {
             }
 
             latest = info
+            if downloadedDMG?.lastPathComponent != cachedName(for: info) {
+                downloadedDMG = nil
+            }
             statusKey = info.isNewerThanCurrent ? .updateAvailable : .upToDate
         } catch {
             latest = nil
@@ -109,27 +125,80 @@ final class UpdateManager: ObservableObject {
     }
 
     private func downloadUpdate(applyAfterDownload: Bool) async {
-        guard let latest, latest.isNewerThanCurrent, !isDownloading, !isApplying else { return }
+        guard let info = latest, info.isNewerThanCurrent, !isDownloading, !isApplying else { return }
         isDownloading = true
         errorMessage = nil
         defer { isDownloading = false }
 
         do {
-            var request = URLRequest(url: latest.asset.browserDownloadURL)
+            guard let expectedDigest = info.asset.digest?.lowercased(),
+                  expectedDigest.hasPrefix("sha256:"),
+                  expectedDigest.dropFirst(7).count == 64,
+                  expectedDigest.dropFirst(7).allSatisfy({ $0.isHexDigit }) else {
+                throw UpdateError.invalidDigest
+            }
+            try FileManager.default.createDirectory(at: releaseCache, withIntermediateDirectories: true)
+            let target = releaseCache.appendingPathComponent(cachedName(for: info))
+            if FileManager.default.fileExists(atPath: target.path) {
+                if try verifyDigest(of: target, expected: expectedDigest) {
+                    downloadedDMG = target
+                    if applyAfterDownload { applyDownloadedUpdate() }
+                    return
+                }
+                try FileManager.default.removeItem(at: target)
+            }
+
+            guard info.asset.browserDownloadURL.scheme == "https",
+                  info.asset.browserDownloadURL.host == "github.com" else {
+                throw UpdateError.invalidDownloadURL
+            }
+            var request = URLRequest(url: info.asset.browserDownloadURL)
             request.setValue("capacity-cleaning", forHTTPHeaderField: "User-Agent")
-            let (temporaryURL, _) = try await URLSession.shared.download(for: request)
-            let safeVersion = latest.version.replacingOccurrences(of: "/", with: "-")
-            let target = FileManager.default.temporaryDirectory
-                .appendingPathComponent("capacity-cleaning-\(safeVersion)-\(architectureName)-\(UUID().uuidString).dmg")
-            try? FileManager.default.removeItem(at: target)
+            request.timeoutInterval = 120
+            let (temporaryURL, response) = try await URLSession.shared.download(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+            guard try verifyDigest(of: temporaryURL, expected: expectedDigest) else {
+                throw UpdateError.digestMismatch
+            }
             try FileManager.default.moveItem(at: temporaryURL, to: target)
             downloadedDMG = target
-
-            if applyAfterDownload {
-                applyDownloadedUpdate()
-            }
+            if applyAfterDownload { applyDownloadedUpdate() }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func cachedName(for info: UpdateInfo) -> String {
+        let safeTag = info.tag.replacingOccurrences(
+            of: "[^A-Za-z0-9._-]", with: "-", options: .regularExpression
+        )
+        return "capacity-cleaning-\(safeTag)-\(architectureName).dmg"
+    }
+
+    private func verifyDigest(of file: URL, expected: String) throws -> Bool {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while true {
+            let chunk = try handle.read(upToCount: 1024 * 1024) ?? Data()
+            if chunk.isEmpty { break }
+            hasher.update(data: chunk)
+        }
+        let actual = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return "sha256:\(actual)" == expected
+    }
+
+    private enum UpdateError: LocalizedError {
+        case invalidDigest, digestMismatch, invalidDownloadURL
+        var errorDescription: String? {
+            switch self {
+            case .invalidDigest: return "The release has no valid SHA-256 digest."
+            case .digestMismatch: return "Downloaded update failed SHA-256 verification."
+            case .invalidDownloadURL: return "Unexpected update download host."
+            }
         }
     }
 
@@ -148,6 +217,12 @@ final class UpdateManager: ObservableObject {
 
         do {
             isApplying = true
+            guard let info = latest, info.isNewerThanCurrent,
+                  downloadedDMG.lastPathComponent == cachedName(for: info),
+                  let digest = info.asset.digest,
+                  try verifyDigest(of: downloadedDMG, expected: digest.lowercased()) else {
+                throw UpdateError.digestMismatch
+            }
             let scriptURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("capacity-cleaning-update-\(UUID().uuidString).sh")
             try updateScript.write(to: scriptURL, atomically: true, encoding: .utf8)
@@ -155,7 +230,7 @@ final class UpdateManager: ObservableObject {
 
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/sh")
-            process.arguments = [scriptURL.path, downloadedDMG.path, bundleURL.path, String(ProcessInfo.processInfo.processIdentifier), scriptURL.path]
+            process.arguments = [scriptURL.path, downloadedDMG.path, bundleURL.path, String(ProcessInfo.processInfo.processIdentifier), scriptURL.path, Bundle.main.bundleIdentifier ?? "com.dog0928.capacity-cleaning", info.tag]
             try process.run()
             NSApp.terminate(nil)
         } catch {
@@ -185,11 +260,27 @@ final class UpdateManager: ObservableObject {
         APP_PID="$3"
         SCRIPT_PATH="$4"
         APP_NAME="capacity-cleaning.app"
+        EXPECTED_BUNDLE_ID="$5"
+        EXPECTED_TAG="$6"
         MOUNT_DIR=""
+        TEMP_APP=""
+        BACKUP_APP=""
+        INSTALLED_NEW="false"
 
         cleanup() {
             if [ -n "$MOUNT_DIR" ]; then
                 /usr/bin/hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null || /usr/bin/hdiutil detach -force "$MOUNT_DIR" -quiet 2>/dev/null || true
+            fi
+            if [ -n "$BACKUP_APP" ] && [ -d "$BACKUP_APP" ]; then
+                if [ "$INSTALLED_NEW" = "true" ]; then
+                    /bin/rm -rf "$TARGET_APP" 2>/dev/null || true
+                fi
+                if [ ! -e "$TARGET_APP" ]; then
+                    /bin/mv "$BACKUP_APP" "$TARGET_APP" 2>/dev/null || true
+                fi
+            fi
+            if [ -n "$TEMP_APP" ] && [ -d "$TEMP_APP" ]; then
+                /bin/rm -rf "$TEMP_APP" 2>/dev/null || true
             fi
             /bin/rm -f "$SCRIPT_PATH" 2>/dev/null || true
         }
@@ -199,7 +290,8 @@ final class UpdateManager: ObservableObject {
             /bin/sleep 0.2
         done
 
-        MOUNT_DIR="$(/usr/bin/hdiutil attach "$DMG_PATH" -readonly -nobrowse -noverify | /usr/bin/awk '/Apple_HFS/ {for (i = 3; i <= NF; i++) printf "%s%s", $i, (i < NF ? OFS : ORS); exit}')"
+        MOUNT_DIR="$(/usr/bin/mktemp -d /tmp/capacity-cleaning-mount.XXXXXX)"
+        /usr/bin/hdiutil attach "$DMG_PATH" -readonly -nobrowse -mountpoint "$MOUNT_DIR" -quiet
         if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR" ]; then
             exit 1
         fi
@@ -209,6 +301,11 @@ final class UpdateManager: ObservableObject {
             exit 1
         fi
 
+        SOURCE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SOURCE_APP/Contents/Info.plist")"
+        SOURCE_TAG="$(/usr/libexec/PlistBuddy -c 'Print :CCBuildTag' "$SOURCE_APP/Contents/Info.plist")"
+        [ "$SOURCE_ID" = "$EXPECTED_BUNDLE_ID" ] && [ "$SOURCE_TAG" = "$EXPECTED_TAG" ] || exit 1
+        /usr/bin/codesign --verify --deep --strict "$SOURCE_APP" || exit 1
+
         TARGET_PARENT="$(/usr/bin/dirname "$TARGET_APP")"
         TEMP_APP="$TARGET_PARENT/.capacity-cleaning-update-$$.app"
         BACKUP_APP="$TARGET_PARENT/.capacity-cleaning-backup-$$.app"
@@ -217,28 +314,38 @@ final class UpdateManager: ObservableObject {
         /usr/bin/ditto "$SOURCE_APP" "$TEMP_APP"
         /bin/mv "$TARGET_APP" "$BACKUP_APP"
         /bin/mv "$TEMP_APP" "$TARGET_APP"
-        /bin/rm -rf "$BACKUP_APP"
+        INSTALLED_NEW="true"
         /usr/bin/open "$TARGET_APP"
+        /bin/rm -rf "$BACKUP_APP"
+        BACKUP_APP=""
         """
     }
 
     private func bestUpdate(from releases: [GitHubRelease]) -> UpdateInfo? {
-        let candidates = releases.compactMap { release -> UpdateInfo? in
-            guard !release.draft, !release.prerelease else { return nil }
-            guard let asset = matchingAsset(in: release) else { return nil }
+        let candidates: [(Date, UpdateInfo)] = releases.compactMap { release in
+            guard !release.draft, !release.prerelease,
+                  let asset = matchingAsset(in: release),
+                  let date = release.publishedAt else { return nil }
             let version = displayVersion(for: release.tagName)
-            let trimmedReleaseName = release.name?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let releaseName = trimmedReleaseName?.isEmpty == false ? trimmedReleaseName ?? release.tagName : release.tagName
-            return UpdateInfo(
-                version: version,
-                releaseName: releaseName,
-                releaseURL: release.htmlURL,
-                asset: asset,
-                isNewerThanCurrent: isReleaseTagNewer(release.tagName)
-            )
+            let trimmedName = release.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let releaseName = trimmedName?.isEmpty == false
+                ? (trimmedName ?? release.tagName) : release.tagName
+            let isNewer: Bool
+            if release.tagName.hasPrefix("master-") {
+                // Do not replace an explicitly versioned installation with a development build.
+                isNewer = !installedTag.hasPrefix("v") && installedTag != release.tagName
+            } else {
+                isNewer = isVersion(version, newerThan: currentVersion)
+            }
+            return (date, UpdateInfo(
+                version: version, releaseName: releaseName,
+                releaseURL: release.htmlURL, asset: asset,
+                tag: release.tagName, isNewerThanCurrent: isNewer
+            ))
         }
-
-        return candidates.first(where: \.isNewerThanCurrent) ?? candidates.first
+        // The GitHub API does not promise chronological ordering for this endpoint.
+        // Only the latest published release may be selected: never downgrade to an old build.
+        return candidates.max { $0.0 < $1.0 }?.1
     }
 
     private func matchingAsset(in release: GitHubRelease) -> ReleaseAsset? {
@@ -262,14 +369,6 @@ final class UpdateManager: ObservableObject {
         #else
         "x64"
         #endif
-    }
-
-    private func isReleaseTagNewer(_ tag: String) -> Bool {
-        let version = displayVersion(for: tag)
-        if version.hasPrefix("master-") {
-            return true
-        }
-        return isVersion(version, newerThan: currentVersion)
     }
 
     private func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
